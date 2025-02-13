@@ -10,22 +10,28 @@ import traceback
 import random
 import math
 import generate_dataset
+from scipy.integrate import solve_ivp
 
 
-plot_label = 'multi10_mse_Alternating'
-save_results = "blah.txt"
-log_info = "zzzzzer.txt"
+# plot_label = 'multi10_mse_Alternating_diffinitcond_onepend3'
+# phase_plot_label = 'multi10_mse_Alternating_sameinitcond_onepend2_phaseplot'
+plot_label = 'onepend_mse_randominitcond'
+phase_plot_label = 'onepend_mse_randominitcond_phaseplot'
+save_results = "trainsteps25000_test1_sameinitcond_onepend.txt"
+save_phase_plot = "trainsteps25000_test1_sameinitcond_onepend2.txt"
+log_info = "trainsteps25000_log1_diff_initcond_onepend.txt"
 model_name= "test"
-model_run_id= "9b6c9448-02d0-4283-be63-13e5a053254c"
-model_checkpoint_step=600
+# model_run_id= "84489b03-413d-44a1-b8bc-14269148a4b5" #"3e7ebfd7-900b-4f2c-a2ee-c3d5facde32a" #"923acf6d-045d-48f1-a3b2-482cc707089a" #"4895d881-eef1-46cd-ada7-05a82695146b" #"9b6c9448-02d0-4283-be63-13e5a053254c"
+model_run_id= "d1ce31c6-7b60-4403-b255-a41aa432a33c" #"d1ce31c6-7b60-4403-b255-a41aa432a33c" #"d1f6cbde-f507-416c-bbcb-720f0fca631f" #"3e7ebfd7-900b-4f2c-a2ee-c3d5facde32a"
+model_checkpoint_step= 25000 #275000 #200 #100000 #80000 #200 #600
 folder_name = f"inference_run/{plot_label}_{model_checkpoint_step}"
 
     
 
-total_time = 1.5
+total_time = 3 #1.5
 dt = 0.01
-Num_of_context = 5
-Num_of_pendulums = 10
+Num_of_context = 21
+Num_of_pendulums = 1 #40 #10
 
 
 
@@ -83,8 +89,23 @@ def generate_random_X0():
             - theta (float): A randomly generated theta, sampled uniformly from range [-π, π].
             - thetadot (float): A randomly generated thetadot, sampled uniformly from the range [-10, 10].
     """
-    theta = np.random.uniform(-np.pi, np.pi)
-    thetadot = np.random.uniform(-10, 10)
+    # theta = np.random.uniform(-np.pi, np.pi)
+    # thetadot = np.random.uniform(-10, 10)
+
+    theta = np.random.uniform(-np.pi/6, np.pi/6) ######2/8/2025 (ebonye): thirty degree recommended by gpt
+    thetadot = np.random.uniform(-3,3) ######2/8/2025 (ebonye): three rad/s recommended by gpt
+
+    ###### 2/5/2025 (ebonye): same init cond for training
+    # epsilon = 1e-6  
+    # theta_ranges = [(-3 * np.pi / 2, -np.pi - epsilon), (np.pi + epsilon, 3 * np.pi / 2)]
+    # theta_choice = np.random.choice([0, 1])
+    # theta = np.random.uniform(*theta_ranges[theta_choice])
+    # thetadot_ranges = [(-20.0, -11.0), (11.0, 20.0)]
+    # thetadot_choice = np.random.choice([0, 1])
+    # thetadot = np.random.uniform(*thetadot_ranges[thetadot_choice])
+    
+
+
     return [theta, thetadot]
 
 
@@ -121,6 +142,9 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
 
     XData_context = XData[start_index - context:start_index].to(device)
     YS_context = YS[start_index - context:start_index].to(device)
+
+    XData_context_copy = XData_context.clone()
+    YS_context_copy = YS_context.clone()
     
     counter = 0
     for i in range(start_index, n_steps):
@@ -135,18 +159,25 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
         )
      
         new_X = torch.tensor([theta, thetadot], dtype=torch.float32, device=device).unsqueeze(0)
-        XData_context = torch.cat((XData_context, new_X), dim=0)
+        XData_context = torch.cat((XData_context, new_X), dim=0) ###### 2/11/2025 (ebonye): added [1:] to fix the context length (sliding window)
+        XData_context_copy = torch.cat((XData_context_copy, new_X), dim=0)
    
         new_Y = torch.tensor(u, dtype=torch.float32, device=device).squeeze() 
        
         if counter == 0:
-            YS_context = torch.cat((YS_context[:-1], new_Y.unsqueeze(0)), dim=0) 
+            YS_context = torch.cat((YS_context[:-1], new_Y.unsqueeze(0)), dim=0) ###### 2/11/2025 (ebonye): added [1:-1] to fix the context length
+            # YS_context = YS_context[1:] 
+            YS_context_copy = torch.cat((YS_context_copy[:-1], new_Y.unsqueeze(0)), dim=0)
             counter = 1
+            # print(YS_context.shape)
         else:
-            YS_context = torch.cat((YS_context, new_Y.unsqueeze(0)), dim=0)
+            YS_context = torch.cat((YS_context, new_Y.unsqueeze(0)), dim=0) ###### 2/11/2025 (ebonye): added [1:] to fix the context length
+            # print(YS_context.shape)
+            YS_context_copy = torch.cat((YS_context_copy, new_Y.unsqueeze(0)), dim=0)
+            # YS_context = YS_context[1:] ###### 2/11/2025 (ebonye): added this line to fix the context length
   
-    theta_model = XData_context[:, 0].cpu().numpy()
-    thetadot_model = XData_context[:, 1].cpu().numpy()
+    theta_model = XData_context_copy[:, 0].cpu().numpy()
+    thetadot_model = XData_context_copy[:, 1].cpu().numpy()
     return T, theta_model, thetadot_model
 
 def plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, plot_label):
@@ -180,6 +211,116 @@ def plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name
     plt.savefig(plot_path, dpi=600, bbox_inches='tight')
 
 
+def plot_phase_plot(theta_model, thetadot_model, theta_rk4, thetadot_rk4, theta_ivp, thetadot_ivp, theta_dmd, thetadot_dmd, context_length, save_results_path, folder_name, plot_label):
+    """
+    Plots the phase plot of theta vs. thetadot.
+
+    Args:
+        theta (np.ndarray): Array of theta values.
+        thetadot (np.ndarray): Array of thetadot values.
+        save_results_path (str): The path to save the results log.
+        folder_name (str): The directory where the plot will be saved.
+        plot_label (str): The label for the plot.
+
+    Returns:
+        None
+    """
+    # with open(save_results_path, "a") as f:
+    #     f.write(f"graphs x_axis: {theta}\n")
+    #     f.write(f"graphs y_axis: {thetadot}\n")
+
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(theta_model, thetadot_model, marker='s', color='orange', label='Model Prediction')
+    # plt.plot(theta_dmd, thetadot_dmd, marker='^', color='red', label='Dynamic Mode Decomposition')
+    plt.plot(theta_rk4, thetadot_rk4, marker='x', color='green', label='RK4 Solver')
+    # plt.plot(theta_ivp[:-context_length], thetadot_ivp[:-context_length], marker= '*', color='blue', label='Ivp Solver', alpha=0.5)
+    
+    plt.plot(theta_rk4[context_length-1], thetadot_rk4[context_length-1], marker = 'D', label='ICL Begins', color='black')
+    plt.xlabel('Theta')
+    plt.ylabel('ThetaDot')
+    plt.title(f"Phase Plot (Context Length: {context_length})")
+    plt.legend()
+    plt.grid(True)
+
+    plot_path = os.path.join(folder_name, f"phase_plot({plot_label}).png")
+    plt.savefig(plot_path, dpi=600, bbox_inches='tight')
+
+
+def plot_using_ivpsolver(X0, total_time, dt, mass, length):
+    """
+    Plots the phase plot of theta vs. thetadot using the IVP solver.
+    
+    Args:
+        X0 (list): Initial state of the pendulum [theta, thetadot].
+        total_time (float): Total duration of the simulation in seconds.
+        dt (float): Time step for the simulation.
+        mass (float): Mass of the pendulum.
+        length (float): Length of the pendulum.
+    """
+    T = np.arange(0, total_time + dt, dt)
+    n_steps = len(T)
+
+
+    # x = np.array(X0, dtype=float)
+    # theta = np.zeros(n_steps)
+    # thetadot = np.zeros(n_steps)
+    # tau = np.zeros(n_steps)
+
+    # theta_d = 0.0  # desired state
+    # thdot_d = 0.0  # desired state
+    X0 = np.array(X0)
+    _,_,_,_,K = workCon.checking(X0, total_time, method='rk4', dt=dt, mass = mass, length = length)
+    K = np.squeeze(K)
+    def f(t,x):
+        b = 0.5
+        g = 9.81
+        x = np.array(x)
+        theta = x[0]
+        thetadot = x[1]
+        dtheta = thetadot
+        dthetadot = (-b * thetadot + mass * g * length * np.sin(theta) + (-K @ x)) / (mass * length**2)
+        
+        return np.array([dtheta, dthetadot])
+    
+    solve = solve_ivp(f, [0, total_time], X0, t_eval=T)
+    theta = solve.y[0]
+    thetadot = solve.y[1]
+
+    return [theta, thetadot]
+
+def dynamic_mode_decomposition(XData, X0, total_time, dt, context):
+        X_trunc = XData[0:context-2]
+        Y_trunc = XData[1:context-1]
+        X = X_trunc.T
+        Y = Y_trunc.T
+        X = X.cpu().detach().numpy()
+        Y = Y.cpu().detach().numpy()
+
+        U, S, V = np.linalg.svd(X, full_matrices=False)
+        # A = np.linalg.multi_dot([Y, V.T, np.linalg.inv(np.diag(S)) , U.T])
+        Atilde = U.T @ Y @ V.T @ np.linalg.inv(np.diag(S))
+        eigvals, eigvecs = np.linalg.eig(Atilde)
+        Phi = Y @ V.T @ np.linalg.inv(np.diag(S)) @ eigvecs
+        # b = np.linalg.pinv(Phi) @ X[:, 0]
+        b = np.linalg.pinv(Phi) @ X0
+
+        Omega = np.log(eigvals) / dt
+        # omega = np.log(eigvals) / dt
+        # Phi = np.linalg.multi_dot([XData[1:context-1].T, V, np.linalg.inv(np.diag(S)), U.T, eigvecs])
+        # b = np.linalg.lstsq(Phi, XData[1:context-1].T @ A.T)[0]
+
+        T = np.arange(0, total_time + dt, dt)
+        X_dmd = np.zeros((len(Phi), len(T)), dtype=np.complex128)
+        for i,t in enumerate(T):
+            X_dmd[:,i] = (Phi @ (b*np.exp(Omega*t))).real
+
+        theta_dmd = X_dmd[0, :].real
+        thetadot_dmd = X_dmd[1, :].real
+        
+        return theta_dmd, thetadot_dmd
+
+
 def main():
     """_summary_
     """
@@ -192,15 +333,33 @@ def main():
 
     os.makedirs(folder_name, exist_ok=True)
     save_results_path = os.path.join(folder_name, save_results)
+    save_phase_path = os.path.join(folder_name, save_phase_plot)
     log_info_path = os.path.join(folder_name, log_info)
     context_lengths = [0] * Num_of_context
     start_indices = [Num_of_context]
 
-    masses = [generate_dataset.sample_bounded_gaussian() for _ in range(Num_of_pendulums)]
-    lengths = [generate_dataset.sample_bounded_gaussian() for _ in range(Num_of_pendulums)]
+    # masses = [generate_dataset.sample_bounded_gaussian() for _ in range(Num_of_pendulums)]
+    # lengths = [generate_dataset.sample_bounded_gaussian() for _ in range(Num_of_pendulums)]
+    ######
+    # masses = [4.288184753155463] ###### 2/6/2025 (ebonye): trained on this point gaussian
+    # lengths = [4.4494456086997705] ###### 2/6/2025 (ebonye): trained on this point gaussian
+    ######
+    masses = [generate_dataset.sample_mass_uniform() for _ in range(Num_of_pendulums)]
+    lengths = [generate_dataset.sample_length_uniform() for _ in range(Num_of_pendulums)]
+    ######
+    # masses = [0.08535511797882313] ###### 2/6/2025 (ebonye): trained on this point uniform
+    # lengths = [0.3293812973204395]
+    ######
+    # masses = [8] ###### 2/9/2025 (ebonye): way outside scope of trained data and doesn't perform well uniform
+    # lengths = [16]
+    # masses= [0.09883065955953545]
+    # lengths= [0.3418819949803681]
     with open(log_info_path, "w") as file:
         for mass, length in tqdm(zip(masses, lengths), desc="MultiPendulum", total=len(masses), leave=False):
-            X0 = generate_random_X0()
+            # X0 = generate_random_X0()
+            # X0 = [np.pi/3,1.0]
+            # X0 = [-0.0811,  1.3219]
+            X0 = [-0.08689436, 1.321947]
             T1, theta_rk4, thetadot_rk4, control_values_rk4, K_values = workCon.checking(
                     X0, total_time, method='rk4', dt=dt, mass = mass, length = length
                 )
@@ -243,11 +402,22 @@ def main():
                     file.write(f"    MSE Loss: {mse_loss}\n")
                     file.write(f"    Context Lengths (Accum MSE): {context_lengths}\n\n")
 
-
+                    
                     context_lengths[context1] += mse_loss
+                    if context1 == Num_of_context - 1:
+                        # theta_full_model = np.hstack((theta_model2,))
+                        theta_ivp, thetadot_ivp = plot_using_ivpsolver([theta_rk4[0],thetadot_rk4[0]], total_time, dt, mass, length)
+                        # theta_dmd, thetadot_dmd = dynamic_mode_decomposition(xs_dataset, X0, total_time, dt, context1)
+                        plot_phase_plot(theta_model2, thetadot_model2, theta_rk4, thetadot_rk4, theta_ivp, thetadot_ivp, theta_rk4, thetadot_rk4, context1, save_results_path, folder_name, plot_label)
+                        # print(len(theta_model))
+                        # print(len(theta_rk4))
+                        # print(len(theta_ivp))
+                        # print(len(theta_dmd))
+                        # print(f"theta_model: {theta_model}")
+                        # print(f"thetadot_model: {thetadot_model}")
 
     x_axis = list(range(1, len(context_lengths) + 1))
-    plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, plot_label)
+    plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, phase_plot_label)
 
 try:
     main()

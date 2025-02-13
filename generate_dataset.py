@@ -59,6 +59,28 @@ def get_valid_masses_and_lengths( dt=0.01, mean=3, variance=1, lowerbound=1, upp
         seed[0] += 1
         reseed_all(seed[0])
 
+def get_valid_masses_and_lengths_uniform():
+    """
+    Samples valid masses and lengths for a pendulum system that meet specific constraints, using a uniform distribution.
+
+    Args:
+        masslowerbound (float, optional): The lower bound for the mass value. Defaults to 0.08.
+        massupperbound (float, optional): The upper bound for the mass value. Defaults to 0.12.
+        lengthlowerbound (float, optional): The lower bound for the length value. Defaults to 0.25.
+        lengthupperbound (float, optional): The upper bound for the length value. Defaults to 0.45.
+
+    Returns:
+        tuple: A tuple containing:
+            - masses (float): A valid mass value sampled from the uniform distribution.
+            - lengths (float): A valid length value sampled from the uniform distribution.
+    """
+    while True:
+        masses = sample_mass_uniform()
+        lengths = sample_length_uniform()
+        if is_valid_mass_length(masses, lengths, dt=0.01):
+            return masses, lengths
+        seed[0] += 1
+        reseed_all(seed[0])
 
 def sample_bounded_gaussian(mean=3, stddev=1, lower_bound=1, upper_bound=5):
     """
@@ -79,6 +101,38 @@ def sample_bounded_gaussian(mean=3, stddev=1, lower_bound=1, upper_bound=5):
             return value
         seed[0] += 1
         reseed_all(seed[0])
+
+def sample_mass_uniform(lower_bound=0.08, upper_bound=0.12):
+    """
+    Samples a mass value from a uniform distribution within specified bounds.
+
+    Args:
+        lower_bound (float): The lower bound of the sampled value.
+        upper_bound (float): The upper bound of the sampled value.
+
+    Returns:
+        float: A sampled mass value within the specified bounds.
+    """
+    value = random.uniform(lower_bound, upper_bound)
+    seed[0] += 1
+    reseed_all(seed[0])
+    return value
+
+def sample_length_uniform(lower_bound=0.25, upper_bound=0.45):
+    """
+    Samples a length value from a uniform distribution within specified bounds.
+
+    Args:
+        lower_bound (float): The lower bound of the sampled value.
+        upper_bound (float): The upper bound of the sampled value.
+
+    Returns:
+        float: A sampled length value within the specified bounds.
+    """
+    value = random.uniform(lower_bound, upper_bound)
+    seed[0] += 1
+    reseed_all(seed[0])
+    return value
 
 
 def is_valid_mass_length(mass, length, dt):
@@ -102,6 +156,30 @@ def is_valid_mass_length(mass, length, dt):
         return False
     return True
 
+def generate_random_X0():
+    """
+    Generates a random initial state for a pendulum system.
+
+    Returns:
+        list: A list containing:
+            - theta (float): A randomly generated theta, sampled uniformly from range [-π, π].
+            - thetadot (float): A randomly generated thetadot, sampled uniformly from the range [-10, 10].
+    """
+    # theta = np.random.uniform(-np.pi, np.pi)
+    # thetadot = np.random.uniform(-10, 10)
+
+    theta = np.random.uniform(-np.pi/6, np.pi/6) ######2/8/2025 (ebonye): thirty degree recommended by gpt
+    thetadot = np.random.uniform(-3,3) ######2/8/2025 (ebonye): three rad/s recommended by gpt
+
+    ###### 2/5/2025 (ebonye): same init cond for training
+    # epsilon = 1e-6  
+    # theta_ranges = [(-3 * np.pi / 2, -np.pi - epsilon), (np.pi + epsilon, 3 * np.pi / 2)]
+    # theta_choice = np.random.choice([0, 1])
+    # theta = np.random.uniform(*theta_ranges[theta_choice])
+    # thetadot_ranges = [(-20.0, -11.0), (11.0, 20.0)]
+    # thetadot_choice = np.random.choice([0, 1])
+    # thetadot = np.random.uniform(*thetadot_ranges[thetadot_choice])
+    return [theta, thetadot]
 
 def save_pickle(data, pickle_path):
     """
@@ -167,12 +245,13 @@ def make_train_data(args):
     seed_file = os.path.join(args.dataset_filesfolder, args.dataset_logger_textfile)
     base_data_dir = os.path.join(args.dataset_filesfolder, args.pickle_folder)
     os.makedirs(base_data_dir, exist_ok=True)
-
+    X0 = generate_random_X0()
     for i in pbar:
         reseed_all(seed[0]+i)
         
-        masses, lengths = get_valid_masses_and_lengths()
-        sampler = PendulumSampler(n_dims=2)
+        masses, lengths = get_valid_masses_and_lengths_uniform()
+        sampler = PendulumSampler(n_dims=2, init_conditions=X0)
+        # sampler = PendulumSampler(n_dims=2)
         T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, bsize, mass = masses, length = lengths)
         pickle_file = f'multipendulum_{i}.pkl'
         pickle_path = os.path.join(base_data_dir, pickle_file)

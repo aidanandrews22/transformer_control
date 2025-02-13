@@ -147,6 +147,63 @@ def count_files_in_folder(folder, prefix, suffix):
     """
     return len([f for f in os.listdir(folder) if f.startswith(prefix) and f.endswith(suffix)])
 
+def create_sliding_windows(sequence, window_size, stride):
+    """
+    Creates a sliding window of a given sequence with a specified window size and stride.
+
+    Args:
+        sequence (torch.Tensor): The input sequence to be windowed.
+        window_size (int): The size of the window.
+        stride (int): The stride of the window.
+
+    Returns:
+        torch.Tensor: A tensor containing the windowed sequences.
+    """
+    windows = []
+    for start in range(0, len(sequence) - window_size + 1, stride):
+        end = start + window_size
+        windows.append(sequence[start:end])
+    
+    return torch.stack(windows)
+
+def batch_create_sliding_windows(batch_sequences, window_size, stride):
+    """
+    Creates a sliding window of a batch of sequences with a specified window size and stride.
+
+    Args:
+        batch_sequences (torch.Tensor): The input batch of sequences to be windowed.
+        window_size (int): The size of the window.
+        stride (int): The stride of the window.
+
+    Returns:
+        torch.Tensor: A tensor containing the windowed sequences.
+    """
+    windows = []
+    for sequence in batch_sequences:
+        windows.append(create_sliding_windows(sequence, window_size, stride))
+    
+    # return torch.stack(windows, dim=0) 
+    return torch.cat(windows, dim=0)
+
+def window_dataset(xs, ys, window_size, stride):
+    """
+    Window the dataset into sequences of a fixed window size.
+
+    Args:
+        xs (torch.Tensor): The input sequences to be windowed.
+        ys (torch.Tensor): The output sequences to be windowed.
+        window_size (int): The size of the window.
+        stride (int): The stride of the window.
+
+    Returns:
+        tuple: A tuple containing:
+            - xs_windows (torch.Tensor): The windowed input sequences.
+            - ys_windows (torch.Tensor): The windowed output sequences.
+    """
+    xs_windows = batch_create_sliding_windows(xs, window_size, stride)
+    ys_windows = batch_create_sliding_windows(ys, window_size, stride)
+    return xs_windows, ys_windows
+
 
 def load_dataset_chunk(pickle_folder, start_idx, end_idx):
     """
@@ -250,19 +307,49 @@ def train(model, args):
     files_per_chunk = total_files // num_chunks
     remainder = total_files % num_chunks
 
+    # window_size = 150
+    # stride = 10
+
     with tqdm(total=num_chunks, desc="Chunk Progress") as chunk_pbar:
         for chunk_idx in range(num_chunks):
             if args.use_chunk == 1:
                 dataset = load_dataset_full(fullpicklepath)
+                # dataset = window_dataset(*zip(*dataset), window_size, stride)
             else:
                 start_idx = chunk_idx * files_per_chunk
                 end_idx = start_idx + files_per_chunk - 1
                 if chunk_idx == num_chunks - 1:  
                     end_idx += remainder
                 dataset = load_dataset_chunk(fullpicklepath, start_idx, end_idx)
+                # dataset = batch_create_sliding_windows(dataset, window_size, stride)
+                # dataset = window_dataset(*zip(*dataset), window_size, stride)
 
             print(f"loaded chunk {chunk_idx + 1}/{num_chunks}")
+            # print(len(dataset))
+            # window_datax = []
+            # # window_datay = []
 
+            # window_data = []
+
+            # for xw, yw in dataset:
+            #     xw, yw = window_dataset(xw, yw, window_size, stride)
+            #     window_data.append((xw, yw))
+            #     window_datax.append(xw)
+                # window_datay.append(yw)
+            
+            # datax = torch.cat(window_datax, dim=0)
+            # datay = torch.cat(window_datay, dim=0)
+            # completex = torch.cat(window_datax, dim=0)
+
+            # window_datay = window_datay.unsqueeze(-1)
+            # dataset = list(zip(window_datax, window_datay))
+
+            # dataset = np.array(list(zip(datax, datay)))
+            # dataset = torch.stack((datax, datay), dim=1)
+
+            # dataset = torch.concat(torch.tensor(window_data), dim=0)
+            # print(np.shape(dataset))
+            # dataset = window_data
 
             with tqdm(total=len(dataset), desc=f"Training Chunk {chunk_idx + 1}/{num_chunks}") as pbar:
                 for xs, ys in dataset:
@@ -323,6 +410,7 @@ def main(args):
         )
 
     model = build_model(args.model)
+    model = torch.nn.DataParallel(model)
     model.cuda()
     model.train()
 

@@ -9,6 +9,13 @@ from sklearn import tree
 import xgboost as xgb
 import ipdb
 from base_models import NeuralNetwork, ParallelNetworks
+from torch.utils.data.distributed import DistributedSampler
+from torch.nn.parallel import DistributedDataParallel
+import torch.distributed as dist
+from transformers import Trainer, TrainingArguments
+
+import pytorch_lightning as pl
+
 
 def build_model(conf):
     if conf.family == "gpt2":
@@ -77,6 +84,7 @@ def get_relevant_baselines(task_name):
 
 
 class TransformerModel(nn.Module):
+# class TransformerModel(pl.LightningModule):
     def __init__(self, n_dims, n_positions, n_embd=128, n_layer=12, n_head=4):
         super(TransformerModel, self).__init__()
         configuration = GPT2Config(
@@ -142,6 +150,8 @@ class TransformerModel(nn.Module):
             return prediction[:, 0]  
         else:
             raise ValueError("Unexpected number of dimensions in prediction tensor.")
+
+
 
 
 class NNModel:

@@ -1,9 +1,12 @@
 import os
 import pickle
+import numpy as np
 
-pickle_dir = "dataset_multipendulum_gaussian/saved_pickles"
+# pickle_dir = "dataset_multipendulum_gaussian/saved_pickles"
+pickle_dir = "dataset_pendulum/picklefolder"
+# pickle_dir = "dataset_pendulum/picklefolder_toobig_gaussian"
 
-file_number = 205000 
+file_number = 1000 #205000 
 
 pickle_file = f"multipendulum_{file_number}.pkl"
 
@@ -17,6 +20,11 @@ else:
             data = pickle.load(f)
         
         print(f"Contents of {pickle_file}:")
-        print(data[1])
+        # print(np.shape(data[0]))
+        # print(np.shape(data[1]))
+
+        print(data[0])
+        # datanp = data
+        # print(np.shape(datanp))
     except Exception as e:
         print(f"An error occurred while reading {pickle_file}: {e}")

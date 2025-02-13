@@ -23,14 +23,19 @@ def get_model_from_run(run_path, step=-1, only_conf=False):
 
     model = models.build_model(conf.model)
 
+    ###### 2/11/2025 (ebonye): fixed to remove "module." from keys so it can work for inference
     if step == -1:
         state_path = os.path.join(run_path, "state.pt")
         state = torch.load(state_path)
-        model.load_state_dict(state["model_state_dict"])
+        # model.load_state_dict(state["model_state_dict"])
+        state_dict = state["model_state_dict"]
     else:
         model_path = os.path.join(run_path, f"checkpoint_{step}.pt")
         state_dict = torch.load(model_path)
-        model.load_state_dict(state_dict)
+        # model.load_state_dict(state_dict)
+
+    state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+    model.load_state_dict(state_dict)
 
     return model, conf
 

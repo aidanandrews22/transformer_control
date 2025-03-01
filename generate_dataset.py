@@ -18,21 +18,21 @@ import numpy as np
 import torch
 import pickle
 
-seed = [1]
+# seed = [1]
 torch.backends.cudnn.benchmark = True
 
-def reseed_all(seed):
-    """
-    Reseeds all random number generators to ensure reproducibility.
+# def reseed_all(seed):
+#     """
+#     Reseeds all random number generators to ensure reproducibility.
 
-    Args:
-        seed (int): The seed value used to initialize the random number generators.
-    """
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
+#     Args:
+#         seed (int): The seed value used to initialize the random number generators.
+#     """
+#     random.seed(seed)
+#     np.random.seed(seed)
+#     torch.manual_seed(seed)
+#     if torch.cuda.is_available():
+#         torch.cuda.manual_seed_all(seed)
 
 
 def get_valid_masses_and_lengths( dt=0.01, mean=3, variance=1, lowerbound=1, upperbound=5):
@@ -56,8 +56,8 @@ def get_valid_masses_and_lengths( dt=0.01, mean=3, variance=1, lowerbound=1, upp
         lengths = sample_bounded_gaussian(mean, variance, lowerbound, upperbound)
         if is_valid_mass_length(masses, lengths, dt=dt):
             return masses, lengths
-        seed[0] += 1
-        reseed_all(seed[0])
+        # seed[0] += 1
+        # reseed_all(seed[0])
 
 def get_valid_masses_and_lengths_uniform():
     """
@@ -79,8 +79,8 @@ def get_valid_masses_and_lengths_uniform():
         lengths = sample_length_uniform()
         if is_valid_mass_length(masses, lengths, dt=0.01):
             return masses, lengths
-        seed[0] += 1
-        reseed_all(seed[0])
+        # seed[0] += 1
+        # reseed_all(seed[0])
 
 def sample_bounded_gaussian(mean=3, stddev=1, lower_bound=1, upper_bound=5):
     """
@@ -99,10 +99,11 @@ def sample_bounded_gaussian(mean=3, stddev=1, lower_bound=1, upper_bound=5):
         value = random.gauss(mean, stddev)
         if lower_bound <= value <= upper_bound:
             return value
-        seed[0] += 1
-        reseed_all(seed[0])
+        # seed[0] += 1
+        # reseed_all(seed[0])
 
-def sample_mass_uniform(lower_bound=0.08, upper_bound=0.12):
+def sample_mass_uniform(lower_bound=0.06, upper_bound=0.17):
+    # before: 0.08, 0.12 #### 2/24/2025 (ebonye) make wider range
     """
     Samples a mass value from a uniform distribution within specified bounds.
 
@@ -114,11 +115,12 @@ def sample_mass_uniform(lower_bound=0.08, upper_bound=0.12):
         float: A sampled mass value within the specified bounds.
     """
     value = random.uniform(lower_bound, upper_bound)
-    seed[0] += 1
-    reseed_all(seed[0])
+    # seed[0] += 1
+    # reseed_all(seed[0])
     return value
 
-def sample_length_uniform(lower_bound=0.25, upper_bound=0.45):
+def sample_length_uniform(lower_bound=0.2, upper_bound=0.55):
+    #before: lower_bound=0.25, upper_bound=0.45 #### 2/24/2025 (ebonye) make wider range
     """
     Samples a length value from a uniform distribution within specified bounds.
 
@@ -130,8 +132,8 @@ def sample_length_uniform(lower_bound=0.25, upper_bound=0.45):
         float: A sampled length value within the specified bounds.
     """
     value = random.uniform(lower_bound, upper_bound)
-    seed[0] += 1
-    reseed_all(seed[0])
+    # seed[0] += 1
+    # reseed_all(seed[0])
     return value
 
 
@@ -193,22 +195,42 @@ def save_pickle(data, pickle_path):
         pickle.dump(data, f)
 
 
-def append_to_seed_file(seed_file, iteration, seed, masses, lengths, k_values, xs_shape):
+# def append_to_seed_file(seed_file, iteration, seed, masses, lengths, k_values, xs_shape):
+#     """
+#     Appends simulation details to a seed file for tracking and reproducibility.
+
+#     Args:
+#         seed_file (str): The path to the seed file.
+#         iteration (int): The iteration number of the simulation.
+#         seed (int): The seed value used for the simulation.
+#         masses (list[float]): The mass used in the simulation.
+#         lengths (list[float]): The length used in the simulation.
+#         k_values (list[float]): The gain matrix used in the simulation.
+#         xs_shape (tuple): The shape of the state dataset (batch_size, n_dim, timepoints).
+#     """
+#     with open(seed_file, 'a') as f:
+#         f.write(f"Iteration: {iteration}\n")
+#         f.write(f"Seed: {seed}\n")
+#         f.write("Masses: " + str(masses) + "\n")
+#         f.write("Lengths: " + str(lengths) + "\n")
+#         f.write("K: " + str(k_values) + "\n")
+#         f.write(f"xs.shape: {xs_shape}\n")
+#         f.write("-" * 10 + "\n")
+
+def append_to_dataset_logger(iteration, masses, lengths, k_values, xs_shape, log_file):
     """
     Appends simulation details to a seed file for tracking and reproducibility.
 
     Args:
-        seed_file (str): The path to the seed file.
         iteration (int): The iteration number of the simulation.
-        seed (int): The seed value used for the simulation.
-        masses (list[float]): The mass used in the simulation.
+        masses (list[float]): The mass used in the
         lengths (list[float]): The length used in the simulation.
         k_values (list[float]): The gain matrix used in the simulation.
         xs_shape (tuple): The shape of the state dataset (batch_size, n_dim, timepoints).
+        log_file (str): The path to the log file.
     """
-    with open(seed_file, 'a') as f:
+    with open(log_file, 'a') as f:
         f.write(f"Iteration: {iteration}\n")
-        f.write(f"Seed: {seed}\n")
         f.write("Masses: " + str(masses) + "\n")
         f.write("Lengths: " + str(lengths) + "\n")
         f.write("K: " + str(k_values) + "\n")
@@ -240,28 +262,48 @@ def make_train_data(args):
     curriculum = Curriculum(args.training.curriculum)
     starting_step = 0
     bsize = args.training.batch_size
-    pbar = tqdm(range(starting_step, args.training.train_steps)) 
+    pbar = tqdm(range(starting_step, args.training.train_steps + args.training.test_pendulums)) 
+    # pbar_test = tqdm(range(args.training.test_pendulums))
+    # num_test_pendulums = args.training.test_pendulums
 
-    seed_file = os.path.join(args.dataset_filesfolder, args.dataset_logger_textfile)
+    # seed_file = os.path.join(args.dataset_filesfolder, args.dataset_logger_textfile)
+    train_logger = os.path.join(args.dataset_filesfolder, args.dataset_logger_textfile)
+    test_logger = os.path.join(args.dataset_filesfolder, args.dataset_test_logger_textfile)
     base_data_dir = os.path.join(args.dataset_filesfolder, args.pickle_folder)
+    test_data_dir = os.path.join(args.dataset_filesfolder, args.pickle_folder_test)
     os.makedirs(base_data_dir, exist_ok=True)
-    X0 = generate_random_X0()
+    os.makedirs(test_data_dir, exist_ok=True)
+    # X0 = generate_random_X0()
+    # X0 = [0.46671834184573213, -2.639731918107688] #### 2/24/2025 (ebonye) 4c4aa2ff... model
+    # X0 = [np.pi/2, 3]
     for i in pbar:
-        reseed_all(seed[0]+i)
+        # reseed_all(seed[0]+i)
         
         masses, lengths = get_valid_masses_and_lengths_uniform()
-        sampler = PendulumSampler(n_dims=2, init_conditions=X0)
-        # sampler = PendulumSampler(n_dims=2)
-        T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, bsize, mass = masses, length = lengths)
-        pickle_file = f'multipendulum_{i}.pkl'
-        pickle_path = os.path.join(base_data_dir, pickle_file)
-        save_pickle((xs, control_values), pickle_path)
-        append_to_seed_file(seed_file, i, seed[0] + i, masses, lengths, k_values, xs.shape)
-        curriculum.update()
+        # sampler = PendulumSampler(n_dims=2, init_conditions=X0)
+        sampler = PendulumSampler(n_dims=2)
+        # T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, bsize, mass = masses, length = lengths)
+        T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
+        if i < args.training.train_steps:
+            pickle_file = f'multipendulum_{i}.pkl'
+            pickle_path = os.path.join(base_data_dir, pickle_file)
+            save_pickle((xs, control_values), pickle_path)
+            append_to_dataset_logger(i, masses, lengths, k_values, xs.shape, train_logger)
+        else:
+            pickle_file = f'multipendulum_test_{i-args.training.train_steps}.pkl'
+            pickle_path = os.path.join(test_data_dir, pickle_file)
+            save_pickle((xs, control_values), pickle_path)
+            append_to_dataset_logger(i-args.training.train_steps, masses, lengths, k_values, xs.shape, test_logger)
 
+        # append_to_seed_file(seed_file, i, seed[0] + i, masses, lengths, k_values, xs.shape)
+        curriculum.update()
+    
+    
 
 def main(args):
-    reseed_all(seed[0])
+    # reseed_all(seed[0])
+    global_seed = 42
+    random.seed(global_seed)
     make_train_data(args)
 
 if __name__ == "__main__":

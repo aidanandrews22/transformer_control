@@ -15,6 +15,7 @@ import random
 import numpy as np
 import torch
 import gc
+import json
 
 random.seed(42)
 np.random.seed(42)
@@ -129,8 +130,10 @@ def train_step(model, xs, ys, optimizer, loss_func, i, args):
         log_training_info(file_path, i, args, xs, ys, output, loss)
 
     total_loss.backward()
+    grad_norm = sum(p.grad.detach().data.norm(2).item() ** 2 for p in model.parameters() if p.grad is not None) ** 0.5
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
     optimizer.step()
-    return total_loss.detach().item(), output.detach()
+    return total_loss.detach().item(), output.detach(), grad_norm
 
 
 def count_files_in_folder(folder, prefix, suffix):
@@ -288,7 +291,9 @@ def train(model, args):
         - Checkpoints and training states are saved here.
         - Wandb logs are done here.
     """
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate, weight_decay=1e-4)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.training.learning_rate, weight_decay=5e-4)
+
     curriculum = Curriculum(args.training.curriculum)
     loss_function_name = args.loss
     loss_function = getattr(tasks, loss_function_name, None)
@@ -301,6 +306,7 @@ def train(model, args):
     picklefolder = args.pickle_folder
     fullpicklepath = os.path.join(dataset_folder, picklefolder)
     current_step = 0
+    # current_step = 70001
 
     total_files = count_files_in_folder(fullpicklepath, "multipendulum_", ".pkl")
     num_chunks = args.use_chunk  
@@ -310,87 +316,153 @@ def train(model, args):
     # window_size = 150
     # stride = 10
 
-    with tqdm(total=num_chunks, desc="Chunk Progress") as chunk_pbar:
-        for chunk_idx in range(num_chunks):
-            if args.use_chunk == 1:
-                dataset = load_dataset_full(fullpicklepath)
-                # dataset = window_dataset(*zip(*dataset), window_size, stride)
-            else:
-                start_idx = chunk_idx * files_per_chunk
-                end_idx = start_idx + files_per_chunk - 1
-                if chunk_idx == num_chunks - 1:  
-                    end_idx += remainder
-                dataset = load_dataset_chunk(fullpicklepath, start_idx, end_idx)
-                # dataset = batch_create_sliding_windows(dataset, window_size, stride)
-                # dataset = window_dataset(*zip(*dataset), window_size, stride)
+    num_epochs = args.training.epochs
+    # start_epoch = 28
+    start_epoch = 0
 
-            print(f"loaded chunk {chunk_idx + 1}/{num_chunks}")
-            # print(len(dataset))
-            # window_datax = []
-            # # window_datay = []
+    # for epoch in range(num_epochs):
+    for epoch in range(start_epoch, num_epochs):
+        print(f"Starting epoch {epoch + 1}/{num_epochs}")
 
-            # window_data = []
+        chunk_to_resume = 0
+        with tqdm(total=num_chunks-chunk_to_resume, desc="Chunk Progress") as chunk_pbar: ###ebonye 150
+            for chunk_idx in range(chunk_to_resume, num_chunks):
+                if args.use_chunk == 1:
+                    dataset = load_dataset_full(fullpicklepath)
+                else:
+                    start_idx = chunk_idx * files_per_chunk
+                    end_idx = start_idx + files_per_chunk - 1
+                    if chunk_idx == num_chunks - 1:  
+                        end_idx += remainder
+                    dataset = load_dataset_chunk(fullpicklepath, start_idx, end_idx)
+                    
 
-            # for xw, yw in dataset:
-            #     xw, yw = window_dataset(xw, yw, window_size, stride)
-            #     window_data.append((xw, yw))
-            #     window_datax.append(xw)
-                # window_datay.append(yw)
-            
-            # datax = torch.cat(window_datax, dim=0)
-            # datay = torch.cat(window_datay, dim=0)
-            # completex = torch.cat(window_datax, dim=0)
+                print(f"loaded chunk {chunk_idx + 1}/{num_chunks}")
 
-            # window_datay = window_datay.unsqueeze(-1)
-            # dataset = list(zip(window_datax, window_datay))
+                #### 2/25/2025 (ebonye) creating batches for same init cond training data
+                # my_batch_size = 8 #10
+                # new_dataset = []
+                
+                # x_batch = []
+                # y_batch = []
+                # for x, y in dataset:
+                #     x_batch.append(x.squeeze())
+                #     y_batch.append(y.squeeze())
+                #     if len(x_batch) == my_batch_size:
+                #         new_dataset.append((torch.stack(x_batch), torch.stack(y_batch)))
+                #         x_batch = []
+                #         y_batch = []
+                # dataset = new_dataset
 
-            # dataset = np.array(list(zip(datax, datay)))
-            # dataset = torch.stack((datax, datay), dim=1)
+                # #### 2/25/2025 (ebonye) reformat dataset so that many mass/length in one batch
+                # my_batch_size = 8
+                # new_dataset = []
+                # x_batch = []
+                # y_batch = []
+                # for x, y in dataset:
+                #     x_batch.append(x)
+                #     y_batch.append(y)
 
-            # dataset = torch.concat(torch.tensor(window_data), dim=0)
-            # print(np.shape(dataset))
-            # dataset = window_data
+                # x_batch_merge = torch.cat(x_batch, dim=0)
+                # y_batch_merge = torch.cat(y_batch, dim=0)
 
-            with tqdm(total=len(dataset), desc=f"Training Chunk {chunk_idx + 1}/{num_chunks}") as pbar:
-                for xs, ys in dataset:
-                    xs = xs.cuda()
-                    ys = ys.cuda()
+                # indices = torch.randperm(x_batch_merge.size(0))
+
+                # x_batch_merge = x_batch_merge[indices]
+                # y_batch_merge = y_batch_merge[indices]
+
+                # for i in range(0, x_batch_merge.size(0), my_batch_size):
+                #     new_dataset.append((x_batch_merge[i:i+my_batch_size], y_batch_merge[i:i+my_batch_size]))
+
+                # dataset = new_dataset
+
+                #### 2/26/2025 (ebonye) batch the dataset
+                my_batch_size = 16
+                new_dataset = []
+                x_batch = []
+                y_batch = []
+                for x, y in dataset:
+                    x_batch.append(x)
+                    y_batch.append(y)
+
+                    if len(x_batch) == my_batch_size:
+                        x_batch_merge = torch.cat(x_batch, dim=0)
+                        y_batch_merge = torch.cat(y_batch, dim=0)
+                        new_dataset.append((x_batch_merge, y_batch_merge))
+                        x_batch = []
+                        y_batch = []
+
+                #### 2/26/2025 (ebonye) shuffle the dataset
+                torch.manual_seed(epoch)
+                indices = torch.randperm(len(new_dataset))
+                new_dataset = [new_dataset[i] for i in indices]
 
 
-                    loss, output = train_step(model, xs, ys, optimizer, loss_function, current_step, args)
-                    print(f"loss: {loss}")
-                    current_step += 1
-                    pbar.update(1)
+                dataset = new_dataset
+                del new_dataset, x_batch, y_batch
+                torch.cuda.empty_cache()
+                gc.collect()
 
 
-                    if current_step % args.wandb.log_every_steps == 0 and not args.test_run:
-                        wandb.log(
-                            {
-                                "step": current_step,
+
+                    
+
+        
+
+                with tqdm(total=len(dataset), desc=f"Training Chunk {chunk_idx + 1}/{num_chunks}") as pbar:
+                    for xs, ys in dataset:
+                        xs = xs.cuda(3)
+                        ys = ys.cuda(3)
+
+
+                        loss, output, gradnorm = train_step(model, xs, ys, optimizer, loss_function, current_step, args)
+                        # print(f"loss: {loss}")
+                        print(f"Epoch {epoch + 1}/{num_epochs}, Step {current_step}, Loss: {loss}")
+
+                        current_step += 1
+                        pbar.update(1)
+                        # torch.cuda.empty_cache()
+                        # gc.collect()
+
+
+
+                        if current_step % args.wandb.log_every_steps == 0 and not args.test_run:
+                            wandb.log(
+                                {
+                                    "epoch": epoch + 1,
+                                    "step": current_step,
+                                    "loss": loss,
+                                    "grad_norm": gradnorm
+                                }
+                            )
+
+                        curriculum.update()
+
+                        if current_step % args.training.save_every_steps == 0 and not args.test_run:
+                            training_state = {
+                                "model_state_dict": model.state_dict(),
+                                "optimizer_state_dict": optimizer.state_dict(),
+                                "train_step": current_step,
+                                "epoch": epoch+1,
                                 "loss": loss,
                             }
-                        )
+                            torch.save(training_state, state_path)
 
-                    curriculum.update()
-
-                    if current_step % args.training.save_every_steps == 0 and not args.test_run:
-                        training_state = {
-                            "model_state_dict": model.state_dict(),
-                            "optimizer_state_dict": optimizer.state_dict(),
-                            "train_step": current_step,
-                        }
-                        torch.save(training_state, state_path)
-
-                        checkpoint_path = os.path.join(args.out_dir, f"checkpoint_{current_step}.pt")
-                        torch.save(model.state_dict(), checkpoint_path)
-                        print(f"Checkpoint saved at step {current_step}: {checkpoint_path}")
+                            # checkpoint_path = os.path.join(args.out_dir, f"checkpoint_{current_step}.pt")
+                            checkpoint_path = os.path.join(args.out_dir, f"checkpoint_epoch{epoch+1}_step{current_step}.pt")
+                            torch.save(model.state_dict(), checkpoint_path)
+                            # print(f"Checkpoint saved at step {current_step}: {checkpoint_path}")
+                            print(f"Checkpoint saved at epoch {epoch+1}, step {current_step}: {checkpoint_path}")
+                        
 
 
-            print(f"Chunk {chunk_idx + 1}/{num_chunks} finished. unloading dataset from memory...")
-            del dataset
-            torch.cuda.empty_cache()
-            gc.collect()
-            chunk_pbar.update(1)
+                print(f"Chunk {chunk_idx + 1}/{num_chunks} finished. unloading dataset from memory...")
+                del dataset
+                torch.cuda.empty_cache()
+                gc.collect()
+                chunk_pbar.update(1)
+        print(f"============== Finished Epoch {epoch + 1}/{num_epochs} ==============\n")
+        
 
 def main(args):
     if args.test_run:
@@ -399,6 +471,15 @@ def main(args):
         curriculum_args.dims.start = curriculum_args.dims.end
         args.training.train_steps = 10
     else:
+        # ##### ebonye resume run
+        # if os.path.exists(os.path.join(args.out_dir, "wandb", "wandb-resume.json")):
+        #     with open(os.path.join(args.out_dir, "wandb", "wandb-resume.json"), "r") as f:
+        #         resume_info = json.load(f)
+        #         run_id = resume_info.get("run_id", None)
+        #         args.training.resume_id = run_id #### ebonye
+        # else:
+        #     run_id = None
+
         wandb.init(
             dir=args.out_dir,
             project=args.wandb.project,
@@ -407,11 +488,51 @@ def main(args):
             notes=args.wandb.notes,
             name=args.wandb.name,
             resume=True,
+            # id=run_id if run_id is not None else None #### ebonye
         )
 
     model = build_model(args.model)
-    model = torch.nn.DataParallel(model)
-    model.cuda()
+    device_ids = [3]
+    model = torch.nn.DataParallel(model, device_ids=device_ids)
+    model = model.to('cuda:3')
+    # model.cuda()
+
+
+
+    # ### ebonye
+    # if args.training.resume_id is not None:
+    #     checkpoint_path = os.path.join(args.out_dir, "checkpoint_epoch28_step70000.pt")
+    #     print(f"checkpoint_path: {checkpoint_path}")
+
+    #     state_path = os.path.join(args.out_dir, "state.pt")
+    #     if os.path.exists(checkpoint_path):
+    #         checkpoint = torch.load(checkpoint_path, map_location='cuda:3')
+    #         state = torch.load(state_path, map_location='cuda:3')
+
+           
+    #         # model.load_state_dict(checkpoint['model_state_dict'])
+    #         model.load_state_dict(state['model_state_dict'])
+    #         optimizer = torch.optim.Adam(model.parameters(), lr=args.training.learning_rate)
+
+    #         # if 'optimizer_state_dict' in checkpoint:
+    #         if 'optimizer_state_dict' in state:
+    #             optimizer.load_state_dict(state['optimizer_state_dict'])
+
+    #         start_step = state.get('train_step', 0) + 1
+    #         loss = state.get('loss', 0.0)
+
+    #         print(f"Resuming training from step {start_step} with loss {loss}")
+    #     else:
+    #         start_step = 0
+    #         loss = 0.0
+    #         print("Starting training from scratch 1")
+
+    # else:
+    #     start_step = 0
+    #     loss = 0.0
+    #     print("Starting training from scratch 2")
+
+    
     model.train()
 
     train(model, args)
@@ -421,6 +542,9 @@ if __name__ == "__main__":
     args = parser.parse_quinfig()
     assert args.model.family in ["gpt2", "lstm"]
     print(f"Running with: {args}")
+    # args.training.resume_id = "ef51e61f-9aa6-4d83-92c8-7d8681eff369"
+    # args.training.resume_id = "c169175d-b2ed-4359-add7-041812fc1ab0"
+    # args.training.resume_id = "9bbb6dd7-4ca0-48f5-85fa-e246a773414d"
 
     if not args.test_run:
         run_id = args.training.resume_id

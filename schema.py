@@ -48,9 +48,11 @@ training_schema = {
     "num_tasks": merge(tinteger, nullable, default(None)),
     "num_training_examples": merge(tinteger, nullable, default(None)),
     "data": merge(tstring, allowed(["gaussian"])),
+    "epochs": merge(tinteger, default(1)),
     "batch_size": merge(tinteger, default(64)),
     "learning_rate": merge(tfloat, default(3e-4)),
     "train_steps": merge(tinteger, default(1000)),
+    "test_pendulums": merge(tinteger, default(100)),
     "save_every_steps": merge(tinteger, default(1000)),  # how often to checkpoint
     "keep_every_steps": merge(tinteger, default(-1)),  # permanent checkpoints
     "resume_id": merge(tstring, nullable, default(None)),  # run uuid64
@@ -73,7 +75,9 @@ schema = {
     "test_run": merge(tboolean, default(False)),
     "dataset_filesfolder": merge(tstring, {"required": False}),
     "pickle_folder": merge(tstring, {"required": False}),
+    "pickle_folder_test": merge(tstring, {"required": False}),
     "dataset_logger_textfile": merge(tstring, {"required": False}),
+    "dataset_test_logger_textfile": merge(tstring, {"required": False}),
     "model_logger_textfile": merge(tstring, default("blah.txt")),
     "loss": merge(tstring, default("mean_squared_error")), 
     "use_chunk": merge(tinteger, default(1)), 

@@ -166,9 +166,10 @@ def run_lqr_and_simulate(X0, total_time, dt=0.01, mass = 1, length = 1, check = 
 
     
     # Q = np.eye(2)    #  2x2 identity matrix for Q (just keep it constant but can tune)
-    Q = np.diag([10, 1])
-    R = np.array([[1]])  # # scalar 1 for R (can change but just keep constant for simplicity)
-
+    Q = np.diag([4, 1]) 
+    R = np.array([[4]])  # # scalar 1 for R (can change but just keep constant for simplicity)
+    #### 2/24/2025 penalize control input ^
+    
     K = compute_lqr_gain(A, B, Q, R)
     if check == True:
         return K

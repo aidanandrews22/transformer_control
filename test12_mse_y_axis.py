@@ -11,26 +11,27 @@ import random
 import math
 import generate_dataset
 from scipy.integrate import solve_ivp
+import pickle
+
 
 
 # plot_label = 'multi10_mse_Alternating_diffinitcond_onepend3'
 # phase_plot_label = 'multi10_mse_Alternating_sameinitcond_onepend2_phaseplot'
-plot_label = 'onepend_mse_randominitcond'
-phase_plot_label = 'onepend_mse_randominitcond_phaseplot'
-save_results = "trainsteps25000_test1_sameinitcond_onepend.txt"
-save_phase_plot = "trainsteps25000_test1_sameinitcond_onepend2.txt"
-log_info = "trainsteps25000_log1_diff_initcond_onepend.txt"
+plot_label = 'onepend_mse_sameinitcond6'
+phase_plot_label = 'onepend_mse_sameinitcond6_phaseplot'
+save_results = "trainsteps100000_test1_sameinitcond6_onepend.txt"
+save_phase_plot = "trainsteps100000_test1_sameinitcond6_onepend.txt"
+log_info = "trainsteps100000_log1_diff_initcond6_onepend.txt"
 model_name= "test"
-# model_run_id= "84489b03-413d-44a1-b8bc-14269148a4b5" #"3e7ebfd7-900b-4f2c-a2ee-c3d5facde32a" #"923acf6d-045d-48f1-a3b2-482cc707089a" #"4895d881-eef1-46cd-ada7-05a82695146b" #"9b6c9448-02d0-4283-be63-13e5a053254c"
-model_run_id= "d1ce31c6-7b60-4403-b255-a41aa432a33c" #"d1ce31c6-7b60-4403-b255-a41aa432a33c" #"d1f6cbde-f507-416c-bbcb-720f0fca631f" #"3e7ebfd7-900b-4f2c-a2ee-c3d5facde32a"
-model_checkpoint_step= 25000 #275000 #200 #100000 #80000 #200 #600
+model_run_id= "20a0c7c3-0dc1-4333-a975-9561640305e6" #"9bbb6dd7-4ca0-48f5-85fa-e246a773414d" #"20a0c7c3-0dc1-4333-a975-9561640305e6" #"945102bf-6f1d-487a-a829-0686f27a54d0" #(q matrix diag(4,1))"4c4aa2ff-7006-4234-8eff-7a9a727efc1a" #(q matrix diag(10,1))"b222c1e0-3b61-4719-9d54-f6252bdb0e0d" 
+model_checkpoint_step= 125000 #70000 #125000 #68000 #40000 #275000 #200 #100000 #80000 #200 #600
 folder_name = f"inference_run/{plot_label}_{model_checkpoint_step}"
 
     
 
-total_time = 3 #1.5
+total_time = 5 #1.5
 dt = 0.01
-Num_of_context = 21
+Num_of_context = 5
 Num_of_pendulums = 1 #40 #10
 
 
@@ -92,8 +93,12 @@ def generate_random_X0():
     # theta = np.random.uniform(-np.pi, np.pi)
     # thetadot = np.random.uniform(-10, 10)
 
-    theta = np.random.uniform(-np.pi/6, np.pi/6) ######2/8/2025 (ebonye): thirty degree recommended by gpt
-    thetadot = np.random.uniform(-3,3) ######2/8/2025 (ebonye): three rad/s recommended by gpt
+    # theta = np.random.uniform(-np.pi/6, np.pi/6) ######2/8/2025 (ebonye): thirty degree recommended by gpt
+    # thetadot = np.random.uniform(-3,3) ######2/8/2025 (ebonye): three rad/s recommended by gpt
+    
+    # theta = np.random.uniform(-np.pi/4, np.pi/4) 
+    theta = np.random.uniform(np.pi/5, np.pi/2)
+    thetadot = np.random.uniform(-3,3)
 
     ###### 2/5/2025 (ebonye): same init cond for training
     # epsilon = 1e-6  
@@ -210,6 +215,47 @@ def plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name
     plot_path = os.path.join(folder_name, f"mse_vs_context_length({plot_label}).png")
     plt.savefig(plot_path, dpi=600, bbox_inches='tight')
 
+def plot_time_series(T, theta_model, thetadot_model, theta_rk4, thetadot_rk4, contextlength, save_results_path, folder_name, plot_label):
+    """
+    Plots the time series of theta and thetadot.
+
+    Args:
+        T (np.ndarray): Array of time steps.
+        theta_model (np.ndarray): Array of predicted theta values.
+        thetadot_model (np.ndarray): Array of predicted thetadot values.
+        theta_rk4 (np.ndarray): Array of true theta values.
+        thetadot_rk4 (np.ndarray): Array of true thetadot values.
+        context_length (int): The context length used for the inference.
+        save_results_path (str): The path to save the results log.
+        folder_name (str): The directory where the plot will be saved.
+        plot_label (str): The label for the plot.
+
+    Returns:
+        None
+    """
+    # with open(save_results_path, "a") as f:
+    #     f.write(f"graphs x_axis: {T}\n")
+    #     f.write(f"graphs y_axis: {theta_model}\n")
+    #     f.write(f"graphs y_axis: {thetadot_model}\n")
+    #     f.write(f"graphs y_axis: {theta_rk4}\n")
+    #     f.write(f"graphs y_axis: {thetadot_rk4}\n")
+
+    plt.figure(figsize=(10, 6))
+
+    plt.plot(T, theta_model, label='Model Prediction (Theta)')
+    plt.plot(T, thetadot_model, label='Model Prediction (ThetaDot)')
+    plt.plot(T[contextlength-1], theta_rk4[contextlength-1], marker='D', label='ICL Begins (Theta)', color='black')
+    plt.plot(T[contextlength-1], thetadot_rk4[contextlength-1], marker='D', label='ICL Begins (ThetaDot)', color='red')
+    plt.plot(T, theta_rk4, label='RK4 Solver (Theta)')
+    plt.plot(T, thetadot_rk4, label='RK4 Solver (ThetaDot)')
+    plt.xlabel('Time')
+    plt.ylabel('Theta/ThetaDot')
+    plt.title(f"Time Series Plot")
+    plt.legend()
+    plt.grid(True)
+
+    plot_path = os.path.join(folder_name, f"time_series_plot({plot_label}).png")
+    plt.savefig(plot_path, dpi=600, bbox_inches='tight')
 
 def plot_phase_plot(theta_model, thetadot_model, theta_rk4, thetadot_rk4, theta_ivp, thetadot_ivp, theta_dmd, thetadot_dmd, context_length, save_results_path, folder_name, plot_label):
     """
@@ -229,10 +275,11 @@ def plot_phase_plot(theta_model, thetadot_model, theta_rk4, thetadot_rk4, theta_
     #     f.write(f"graphs x_axis: {theta}\n")
     #     f.write(f"graphs y_axis: {thetadot}\n")
 
-
+    # print(f"theta_model: {theta_model}")
+    # print(f"thetadot_model: {thetadot_model}")
     plt.figure(figsize=(10, 6))
     plt.plot(theta_model, thetadot_model, marker='s', color='orange', label='Model Prediction')
-    # plt.plot(theta_dmd, thetadot_dmd, marker='^', color='red', label='Dynamic Mode Decomposition')
+    plt.plot(theta_dmd, thetadot_dmd, marker='^', color='red', label='Dynamic Mode Decomposition')
     plt.plot(theta_rk4, thetadot_rk4, marker='x', color='green', label='RK4 Solver')
     # plt.plot(theta_ivp[:-context_length], thetadot_ivp[:-context_length], marker= '*', color='blue', label='Ivp Solver', alpha=0.5)
     
@@ -354,12 +401,34 @@ def main():
     # lengths = [16]
     # masses= [0.09883065955953545]
     # lengths= [0.3418819949803681]
+
+    # masses= [0.0929533105933265]
+    # lengths= [0.4086680167523326]
+
+    # masses = [0.11393306704511483]
+    # lengths = [0.26983731488107]
+
+    # masses = [0.18]
+    # lengths = [0.57]
+
+    # masses = [0.27]
+    # lengths = [0.67]
+
+    # masses = [np.random.uniform(0.06, 0.17) for _ in range(Num_of_pendulums)]
+    # lengths = [np.random.uniform(0.2, 0.55) for _ in range(Num_of_pendulums)]
+    
     with open(log_info_path, "w") as file:
         for mass, length in tqdm(zip(masses, lengths), desc="MultiPendulum", total=len(masses), leave=False):
-            # X0 = generate_random_X0()
+            X0 = generate_random_X0()
             # X0 = [np.pi/3,1.0]
             # X0 = [-0.0811,  1.3219]
-            X0 = [-0.08689436, 1.321947]
+            # X0 = [-0.08689436, 1.321947]
+            # X0 = [0.46671834184573213, -2.639731918107688]
+            # X0 = [np.pi/2, 3]
+            # X0 = [np.pi/2, 3]
+            # X0 = [3*np.pi/4, 5]
+
+
             T1, theta_rk4, thetadot_rk4, control_values_rk4, K_values = workCon.checking(
                     X0, total_time, method='rk4', dt=dt, mass = mass, length = length
                 )
@@ -375,6 +444,8 @@ def main():
             xs_dataset = np.column_stack((theta_rk4, thetadot_rk4))
             xs_dataset = torch.tensor(xs_dataset).float().cuda()
             control_values_rk4 = torch.tensor(control_values_rk4).float().cuda()
+            store_theta_model = []
+            store_thetadot_model = []
             for start_index in start_indices:
                 file.write(f"  Start Index: {start_index}\n")
                 theta_rk4_temp = theta_rk4[start_index - 1:]
@@ -382,9 +453,12 @@ def main():
                 for context1 in tqdm(range(len(context_lengths)), desc=f"Context Loop (Start Index {start_index})", leave=False):
                     if start_index < context1:
                         continue
+                    # print(f"Context1: {context1 + 1}")
                     T_model, theta_model2, thetadot_model2 = run_inference_on_model(
                             model, xs_dataset, control_values_rk4, total_time, dt, context=context1 + 1, start_index=start_index, mass = mass, length = length
                         )
+                    store_theta_model.append(theta_model2)
+                    store_thetadot_model.append(thetadot_model2)
                     theta_model = theta_model2[context1:]
                     thetadot_model = thetadot_model2[context1:]
                     mse_loss = mse(theta_model, thetadot_model, theta_rk4_temp, thetadot_rk4_temp)
@@ -406,9 +480,13 @@ def main():
                     context_lengths[context1] += mse_loss
                     if context1 == Num_of_context - 1:
                         # theta_full_model = np.hstack((theta_model2,))
+                        print(np.shape(T_model))    
+                        print(np.shape(theta_model2))
+                        print(np.shape(thetadot_model2))
                         theta_ivp, thetadot_ivp = plot_using_ivpsolver([theta_rk4[0],thetadot_rk4[0]], total_time, dt, mass, length)
                         # theta_dmd, thetadot_dmd = dynamic_mode_decomposition(xs_dataset, X0, total_time, dt, context1)
-                        plot_phase_plot(theta_model2, thetadot_model2, theta_rk4, thetadot_rk4, theta_ivp, thetadot_ivp, theta_rk4, thetadot_rk4, context1, save_results_path, folder_name, plot_label)
+                        plot_phase_plot(theta_model2, thetadot_model2, theta_rk4, thetadot_rk4, theta_ivp, thetadot_ivp, theta_rk4, thetadot_rk4, context1+1, save_results_path, folder_name, plot_label)
+                        plot_time_series(T_model, theta_model2, thetadot_model2, theta_rk4, thetadot_rk4, context1+1, save_results_path, folder_name, plot_label)
                         # print(len(theta_model))
                         # print(len(theta_rk4))
                         # print(len(theta_ivp))
@@ -419,8 +497,21 @@ def main():
     x_axis = list(range(1, len(context_lengths) + 1))
     plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, phase_plot_label)
 
+    return X0, masses, lengths, store_theta_model, store_thetadot_model
+
 try:
-    main()
+    results = main()
+    # print(np.array(theta_models).shape)
+    # print(np.array(thetadot_models).shape)
+
+    # save_results = os.join(folder_name, "results.pkl")
+    save_results = os.path.join(folder_name, f"results_maxcontext{Num_of_context}.pkl")
+
+    with open(save_results, "wb") as f:
+        pickle.dump(results, f)
+
+
+    print("done")   
 except Exception:
     print("exception starting debugger")
     traceback.print_exc()

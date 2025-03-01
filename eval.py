@@ -30,7 +30,7 @@ def get_model_from_run(run_path, step=-1, only_conf=False):
         # model.load_state_dict(state["model_state_dict"])
         state_dict = state["model_state_dict"]
     else:
-        model_path = os.path.join(run_path, f"checkpoint_{step}.pt")
+        model_path = os.path.join(run_path, f"checkpoint_epoch50_step{step}.pt") #### ebonye 2/27/2025 change back to step{step}
         state_dict = torch.load(model_path)
         # model.load_state_dict(state_dict)
 

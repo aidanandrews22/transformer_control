@@ -12,27 +12,30 @@ import math
 import generate_dataset
 from scipy.integrate import solve_ivp
 import pickle
+import re
 
 
 
 # plot_label = 'multi10_mse_Alternating_diffinitcond_onepend3'
 # phase_plot_label = 'multi10_mse_Alternating_sameinitcond_onepend2_phaseplot'
-plot_label = 'onepend_mse_sameinitcond6'
-phase_plot_label = 'onepend_mse_sameinitcond6_phaseplot'
-save_results = "trainsteps100000_test1_sameinitcond6_onepend.txt"
-save_phase_plot = "trainsteps100000_test1_sameinitcond6_onepend.txt"
-log_info = "trainsteps100000_log1_diff_initcond6_onepend.txt"
+plot_label = 'onepend_mse_randinitcond1'
+phase_plot_label = 'onepend_mse_randinitcond1_phaseplot'
+mse_plot_label = 'onepend_mse_randinitcond1_mseplot'
+save_results = "trainsteps100000_test1_randinitcond1_onepend.txt"
+save_phase_plot = "trainsteps125000_test1_randinitcond1_onepend.txt"
+log_info = "trainsteps125000_log1_diff_initcond1_onepend.txt"
 model_name= "test"
-model_run_id= "20a0c7c3-0dc1-4333-a975-9561640305e6" #"9bbb6dd7-4ca0-48f5-85fa-e246a773414d" #"20a0c7c3-0dc1-4333-a975-9561640305e6" #"945102bf-6f1d-487a-a829-0686f27a54d0" #(q matrix diag(4,1))"4c4aa2ff-7006-4234-8eff-7a9a727efc1a" #(q matrix diag(10,1))"b222c1e0-3b61-4719-9d54-f6252bdb0e0d" 
+model_run_id= "06a99b9e-ff31-4a4e-a3bf-191df6b0b787"
 model_checkpoint_step= 125000 #70000 #125000 #68000 #40000 #275000 #200 #100000 #80000 #200 #600
+model_checkpoint_epoch = 50
 folder_name = f"inference_run/{plot_label}_{model_checkpoint_step}"
 
     
 
 total_time = 5 #1.5
 dt = 0.01
-Num_of_context = 5
-Num_of_pendulums = 1 #40 #10
+Num_of_context = 20
+Num_of_pendulums = 20 #40 #10
 
 
 
@@ -61,7 +64,8 @@ def mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4):
     xs_true = torch.tensor(np.column_stack((theta_rk4, thetadot_rk4)), dtype=torch.float32)
     return (xs_true - xs_pred).pow(2).mean().item()
 
-def load_model(run_dir, name, run_id, step):
+# def load_model(run_dir, name, run_id, step):
+def load_model(run_dir, name, run_id, step, epoch):
     """
     Loads a pre-trained model and its configuration from a specified run directory.
 
@@ -77,7 +81,7 @@ def load_model(run_dir, name, run_id, step):
             - conf (dict): The configuration dictionary associated with the model run.
     """
     run_path = os.path.join(run_dir, name, run_id)
-    model, conf = get_model_from_run(run_path, step=step)
+    model, conf = get_model_from_run(run_path, epoch= epoch, step=step)
     return model, conf
 
 
@@ -142,14 +146,14 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
   
-    T = np.arange(0, total_time + dt, dt)
+    T = np.arange(0, total_time, dt)
     n_steps = len(T)
 
     XData_context = XData[start_index - context:start_index].to(device)
     YS_context = YS[start_index - context:start_index].to(device)
 
-    XData_context_copy = XData_context.clone()
-    YS_context_copy = YS_context.clone()
+    # XData_context_copy = XData_context.clone()
+    # YS_context_copy = YS_context.clone()
     
     counter = 0
     for i in range(start_index, n_steps):
@@ -165,24 +169,24 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
      
         new_X = torch.tensor([theta, thetadot], dtype=torch.float32, device=device).unsqueeze(0)
         XData_context = torch.cat((XData_context, new_X), dim=0) ###### 2/11/2025 (ebonye): added [1:] to fix the context length (sliding window)
-        XData_context_copy = torch.cat((XData_context_copy, new_X), dim=0)
+        # XData_context_copy = torch.cat((XData_context_copy, new_X), dim=0)
    
         new_Y = torch.tensor(u, dtype=torch.float32, device=device).squeeze() 
        
         if counter == 0:
             YS_context = torch.cat((YS_context[:-1], new_Y.unsqueeze(0)), dim=0) ###### 2/11/2025 (ebonye): added [1:-1] to fix the context length
             # YS_context = YS_context[1:] 
-            YS_context_copy = torch.cat((YS_context_copy[:-1], new_Y.unsqueeze(0)), dim=0)
+            # YS_context_copy = torch.cat((YS_context_copy[:-1], new_Y.unsqueeze(0)), dim=0)
             counter = 1
             # print(YS_context.shape)
         else:
             YS_context = torch.cat((YS_context, new_Y.unsqueeze(0)), dim=0) ###### 2/11/2025 (ebonye): added [1:] to fix the context length
             # print(YS_context.shape)
-            YS_context_copy = torch.cat((YS_context_copy, new_Y.unsqueeze(0)), dim=0)
+            # YS_context_copy = torch.cat((YS_context_copy, new_Y.unsqueeze(0)), dim=0)
             # YS_context = YS_context[1:] ###### 2/11/2025 (ebonye): added this line to fix the context length
   
-    theta_model = XData_context_copy[:, 0].cpu().numpy()
-    thetadot_model = XData_context_copy[:, 1].cpu().numpy()
+    theta_model = XData_context[:, 0].cpu().numpy()
+    thetadot_model = XData_context[:, 1].cpu().numpy()
     return T, theta_model, thetadot_model
 
 def plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, plot_label):
@@ -244,8 +248,8 @@ def plot_time_series(T, theta_model, thetadot_model, theta_rk4, thetadot_rk4, co
 
     plt.plot(T, theta_model, label='Model Prediction (Theta)')
     plt.plot(T, thetadot_model, label='Model Prediction (ThetaDot)')
-    plt.plot(T[contextlength-1], theta_rk4[contextlength-1], marker='D', label='ICL Begins (Theta)', color='black')
-    plt.plot(T[contextlength-1], thetadot_rk4[contextlength-1], marker='D', label='ICL Begins (ThetaDot)', color='red')
+    plt.plot(T[contextlength-1], theta_model[contextlength], marker='D', label='ICL Begins (Theta)', color='black')
+    plt.plot(T[contextlength-1], thetadot_model[contextlength], marker='D', label='ICL Begins (ThetaDot)', color='red')
     plt.plot(T, theta_rk4, label='RK4 Solver (Theta)')
     plt.plot(T, thetadot_rk4, label='RK4 Solver (ThetaDot)')
     plt.xlabel('Time')
@@ -257,7 +261,7 @@ def plot_time_series(T, theta_model, thetadot_model, theta_rk4, thetadot_rk4, co
     plot_path = os.path.join(folder_name, f"time_series_plot({plot_label}).png")
     plt.savefig(plot_path, dpi=600, bbox_inches='tight')
 
-def plot_phase_plot(theta_model, thetadot_model, theta_rk4, thetadot_rk4, theta_ivp, thetadot_ivp, theta_dmd, thetadot_dmd, context_length, save_results_path, folder_name, plot_label):
+def plot_phase_plot(theta_model, thetadot_model, theta_rk4, thetadot_rk4, theta_dmd, thetadot_dmd, context_length, save_results_path, folder_name, plot_label):
     """
     Plots the phase plot of theta vs. thetadot.
 
@@ -279,11 +283,11 @@ def plot_phase_plot(theta_model, thetadot_model, theta_rk4, thetadot_rk4, theta_
     # print(f"thetadot_model: {thetadot_model}")
     plt.figure(figsize=(10, 6))
     plt.plot(theta_model, thetadot_model, marker='s', color='orange', label='Model Prediction')
-    plt.plot(theta_dmd, thetadot_dmd, marker='^', color='red', label='Dynamic Mode Decomposition')
+    # plt.plot(theta_dmd, thetadot_dmd, marker='^', color='red', label='Dynamic Mode Decomposition')
     plt.plot(theta_rk4, thetadot_rk4, marker='x', color='green', label='RK4 Solver')
-    # plt.plot(theta_ivp[:-context_length], thetadot_ivp[:-context_length], marker= '*', color='blue', label='Ivp Solver', alpha=0.5)
     
-    plt.plot(theta_rk4[context_length-1], thetadot_rk4[context_length-1], marker = 'D', label='ICL Begins', color='black')
+
+    plt.plot(theta_model[context_length], thetadot_model[context_length], marker = 'D', label='ICL Begins', color='black')
     plt.xlabel('Theta')
     plt.ylabel('ThetaDot')
     plt.title(f"Phase Plot (Context Length: {context_length})")
@@ -294,78 +298,161 @@ def plot_phase_plot(theta_model, thetadot_model, theta_rk4, thetadot_rk4, theta_
     plt.savefig(plot_path, dpi=600, bbox_inches='tight')
 
 
-def plot_using_ivpsolver(X0, total_time, dt, mass, length):
+def plot_mse_vs_context_length(mean_mse, std_mse, save_results_path, folder_name, plot_label):
     """
-    Plots the phase plot of theta vs. thetadot using the IVP solver.
-    
+    Plots the mean MSE vs. context length graph.
+
     Args:
-        X0 (list): Initial state of the pendulum [theta, thetadot].
-        total_time (float): Total duration of the simulation in seconds.
-        dt (float): Time step for the simulation.
-        mass (float): Mass of the pendulum.
-        length (float): Length of the pendulum.
+        mean_mse (dict): A dictionary containing the mean MSE values for each context length.
+        std_mse (dict): A dictionary containing the standard deviation of MSE values for each context length.
+        save_results_path (str): The path to save the results log.
+        folder_name (str): The directory where the plot will be saved.
+        plot_label (str): The label for the plot.
+
+    Returns:
+        None
     """
-    T = np.arange(0, total_time + dt, dt)
-    n_steps = len(T)
+    # with open(save_results_path, "a") as f:
+    #     f.write(f"mean_mse: {mean_mse}\n")
+    #     f.write(f"std_mse: {std_mse}\n")
+
+    x_axis = list(mean_mse.keys())
+    y_axis = list(mean_mse.values())
+    y_err = list(std_mse.values())
+
+    plt.figure(figsize=(10, 6))
+    plt.errorbar(x_axis, y_axis, yerr=y_err, fmt='o-', capsize=8, label=plot_label)
+    plt.xticks(x_axis)
+    plt.xlabel('Context Length')
+    plt.ylabel('Mean MSE')
+    plt.title(f'Mean MSE vs Context Length {Num_of_pendulums} Pendulums')
+    plt.legend()
+    plt.grid(True)
 
 
-    # x = np.array(X0, dtype=float)
-    # theta = np.zeros(n_steps)
-    # thetadot = np.zeros(n_steps)
-    # tau = np.zeros(n_steps)
+    plot_path = os.path.join(folder_name, f"mean_mse_vs_context_length({Num_of_pendulums} Pendulums).png")
+    plt.savefig(plot_path, dpi=600, bbox_inches='tight')
 
-    # theta_d = 0.0  # desired state
-    # thdot_d = 0.0  # desired state
-    X0 = np.array(X0)
-    _,_,_,_,K = workCon.checking(X0, total_time, method='rk4', dt=dt, mass = mass, length = length)
-    K = np.squeeze(K)
-    def f(t,x):
-        b = 0.5
-        g = 9.81
-        x = np.array(x)
-        theta = x[0]
-        thetadot = x[1]
-        dtheta = thetadot
-        dthetadot = (-b * thetadot + mass * g * length * np.sin(theta) + (-K @ x)) / (mass * length**2)
-        
-        return np.array([dtheta, dthetadot])
-    
-    solve = solve_ivp(f, [0, total_time], X0, t_eval=T)
-    theta = solve.y[0]
-    thetadot = solve.y[1]
-
-    return [theta, thetadot]
 
 def dynamic_mode_decomposition(XData, X0, total_time, dt, context):
-        X_trunc = XData[0:context-2]
-        Y_trunc = XData[1:context-1]
-        X = X_trunc.T
-        Y = Y_trunc.T
-        X = X.cpu().detach().numpy()
-        Y = Y.cpu().detach().numpy()
+        if context == 1:
+            ######## does not work well for one context
+            # Single snapshot, apply pseudo-DMD directly
+            X = XData.cpu().detach().numpy() if hasattr(XData, 'cpu') else XData
+            X = X.T
+            Y = X
 
-        U, S, V = np.linalg.svd(X, full_matrices=False)
-        # A = np.linalg.multi_dot([Y, V.T, np.linalg.inv(np.diag(S)) , U.T])
-        Atilde = U.T @ Y @ V.T @ np.linalg.inv(np.diag(S))
-        eigvals, eigvecs = np.linalg.eig(Atilde)
+            # Regularize the inverse process (pseudo-DMD) for one snapshot
+            X_pseudo = (np.linalg.pinv(X.T @ X + 1e-6 * np.eye(X.shape[1])) @ X.T).T
+            # print(np.shape(X_pseudo))
+            U, S, V = np.linalg.svd(X_pseudo, full_matrices=False)
+            # print(np.shape(U))
+            # print(np.shape(S))
+            # print(np.shape(V))
+            # print(np.shape(X))
+            # print(np.shape(Y))
+            Atilde = U.T @ Y @ V.T @ np.linalg.inv(np.diag(S))
+            eigvals, eigvecs = np.linalg.eig(Atilde)
+            # print(f'Eigenvalues:{eigvals}')
+            # print(np.shape(Atilde))
+            # Phi = Y @ V.T @ np.linalg.inv(np.diag(S)) @ eigvecs
+            # Phi = eigvecs
+            # print(np.shape(Phi))
+
+        else:
+            X_trunc = XData[0:context-2+1]
+            Y_trunc = XData[1:context-1+1]
+            X = X_trunc.T
+            Y = Y_trunc.T
+            X = X.cpu().detach().numpy() if hasattr(X, 'cpu') else X
+            Y = Y.cpu().detach().numpy() if hasattr(Y, 'cpu') else Y
+
+
+            U, S, V = np.linalg.svd(X, full_matrices=False)
+            # print(f'Context: {context}')
+            # print(f'X_trunc: {X_trunc}')
+            # print(f'Y_trunc: {Y_trunc}')
+            # print(f'X: {X}')
+            # print(f'Y: {Y}')
+            # print(f'U: {U}')
+            # print(f'S: {S}')
+            # print(f'V: {V}')
+
+            # A = np.linalg.multi_dot([Y, V.T, np.linalg.inv(np.diag(S)) , U.T])
+            Atilde = U.T @ Y @ V.T @ np.linalg.inv(np.diag(S))
+
+            eigvals, eigvecs = np.linalg.eig(Atilde)
+            # print(f'Atilde: {Atilde}')
+            # print(f'Eigenvalues of Atilde:{eigvals}')
+            # print(f'Eigenvecs of Atilde:{eigvecs}')
+        
         Phi = Y @ V.T @ np.linalg.inv(np.diag(S)) @ eigvecs
         # b = np.linalg.pinv(Phi) @ X[:, 0]
         b = np.linalg.pinv(Phi) @ X0
 
         Omega = np.log(eigvals) / dt
+        # print(f'Omega: {Omega}')
         # omega = np.log(eigvals) / dt
         # Phi = np.linalg.multi_dot([XData[1:context-1].T, V, np.linalg.inv(np.diag(S)), U.T, eigvecs])
         # b = np.linalg.lstsq(Phi, XData[1:context-1].T @ A.T)[0]
 
-        T = np.arange(0, total_time + dt, dt)
+        T = np.arange(0, total_time, dt)
+        Tnew = T[context:]
         X_dmd = np.zeros((len(Phi), len(T)), dtype=np.complex128)
-        for i,t in enumerate(T):
-            X_dmd[:,i] = (Phi @ (b*np.exp(Omega*t))).real
+        X_dmd[:, 0:context] = (XData[0:context].cpu().detach().numpy() if hasattr(XData, 'cpu') else XData[0:context]).T
+        for i,t in enumerate(Tnew):
+            X_dmd[:,i+context] = (Phi @ (b*np.exp(Omega*t))).real
 
         theta_dmd = X_dmd[0, :].real
         thetadot_dmd = X_dmd[1, :].real
         
         return theta_dmd, thetadot_dmd
+
+def get_mass_length_Ks_from_text_file(file_path, target_iteration):
+    """
+    Reads the mass and length values from a text file.
+
+    Args:
+        file_path (str): The path to the text file containing the mass and length values.
+
+    Returns:
+        tuple: A tuple containing:
+            - mass (float): The mass of the pendulum.
+            - length (float): The length of the pendulum.
+    """
+    iteration_found = False
+    iteration_data = {}
+    with open(file_path, "r", encoding='utf-8') as f:
+        for line in f:
+            # check for iteration
+            iteration_match = re.search(r'Iteration:\s*(\d+)', line)
+            if iteration_match:
+                current_iteration = int(iteration_match.group(1))
+                if current_iteration == target_iteration:
+                    iteration_found = True
+                else:
+                    iteration_found = False
+            
+            # once target iteration is found, extract mass, length, and K values
+            if iteration_found:
+
+                # extract mass and length
+                mass_match = re.search(r'Masses:\s*(\d+\.\d+)', line)
+                length_match = re.search(r'Lengths:\s*(\d+\.\d+)', line)
+                K_match = re.search(r'K:\s*\[\[(.*?)\]\]', line)
+
+                if mass_match:
+                    iteration_data['mass'] = float(mass_match.group(1))
+                if length_match:
+                    iteration_data['length'] = float(length_match.group(1))
+
+                if K_match:
+                    # iteration_data['K'] = float(K_match.group(1))
+                    K_values = list(map(float, K_match.group(1).split()))
+                    iteration_data['K'] = torch.tensor(K_values).reshape(1, 2)  # Assuming K is 1x2 matrix
+                
+    return iteration_data['mass'], iteration_data['length'], iteration_data['K']
+
 
 
 def main():
@@ -375,7 +462,8 @@ def main():
         run_dir="./models",
         name= model_name,
         run_id= model_run_id,
-        step=model_checkpoint_step
+        step=model_checkpoint_step,
+        epoch=model_checkpoint_epoch ###### 2/11/2025 (ebonye): added epoch
     )
 
     os.makedirs(folder_name, exist_ok=True)
@@ -383,121 +471,200 @@ def main():
     save_phase_path = os.path.join(folder_name, save_phase_plot)
     log_info_path = os.path.join(folder_name, log_info)
     context_lengths = [0] * Num_of_context
-    start_indices = [Num_of_context]
+    # start_indices = [Num_of_context]
+    contexts = np.arange(1, Num_of_context + 1)
 
-    # masses = [generate_dataset.sample_bounded_gaussian() for _ in range(Num_of_pendulums)]
-    # lengths = [generate_dataset.sample_bounded_gaussian() for _ in range(Num_of_pendulums)]
     ######
-    # masses = [4.288184753155463] ###### 2/6/2025 (ebonye): trained on this point gaussian
-    # lengths = [4.4494456086997705] ###### 2/6/2025 (ebonye): trained on this point gaussian
-    ######
-    masses = [generate_dataset.sample_mass_uniform() for _ in range(Num_of_pendulums)]
-    lengths = [generate_dataset.sample_length_uniform() for _ in range(Num_of_pendulums)]
-    ######
-    # masses = [0.08535511797882313] ###### 2/6/2025 (ebonye): trained on this point uniform
-    # lengths = [0.3293812973204395]
-    ######
-    # masses = [8] ###### 2/9/2025 (ebonye): way outside scope of trained data and doesn't perform well uniform
-    # lengths = [16]
-    # masses= [0.09883065955953545]
-    # lengths= [0.3418819949803681]
+    # masses = [generate_dataset.sample_mass_uniform() for _ in range(Num_of_pendulums)]
+    # lengths = [generate_dataset.sample_length_uniform() for _ in range(Num_of_pendulums)]
 
-    # masses= [0.0929533105933265]
-    # lengths= [0.4086680167523326]
+    ###Training point
+    # masses = [0.1303369478303672]
+    # lengths = [0.20875376432793344]
+    # multipend_num = 10
+    # pickle_dir = "dataset_pendulum/picklefolder"
+    # pickle_file = f"multipendulum_{multipend_num}.pkl"
+    # file_path_train_data = os.path.join(pickle_dir, pickle_file)
+    # with open(file_path_train_data, "rb") as f:
+    #     data_controls = pickle.load(f)
 
-    # masses = [0.11393306704511483]
-    # lengths = [0.26983731488107]
+    # file_path_mass_length = "dataset_pendulum/dataset_logger_noreseeding.txt"
 
-    # masses = [0.18]
-    # lengths = [0.57]
+    ###Test point
+    # multipend_num = 1000
+    # pickle_dir = "dataset_pendulum/picklefolder_test"
+    # pickle_file = f"multipendulum_test_{multipend_num}.pkl"
+    # file_path_test_data = os.path.join(pickle_dir, pickle_file)
+    # with open(file_path_test_data, "rb") as f:
+    #     data_controls = pickle.load(f)
 
-    # masses = [0.27]
-    # lengths = [0.67]
+    # file_path_mass_length = "dataset_pendulum/dataset_test_logger.txt"
 
-    # masses = [np.random.uniform(0.06, 0.17) for _ in range(Num_of_pendulums)]
-    # lengths = [np.random.uniform(0.2, 0.55) for _ in range(Num_of_pendulums)]
+
+    ####################
+    # masses, lengths, K_values = get_mass_length_Ks_from_text_file(file_path_mass_length, multipend_num)
+    # print(f"masses: {masses}")
+    # print(f"lengths: {lengths}")
+
+    # # masses= [0.1567184391040723]
+    # # lengths= [0.3907888188883454]
+
+    # masses = [masses]
+    # lengths = [lengths]
+
+    ####################
+    pends = np.random.randint(0, 10000, size=Num_of_pendulums)
+    masses = []
+    lengths = []
+    X0s = []
+    data_and_controls = []
+    for multipend_num in pends:
+        pickle_dir = "dataset_pendulum/picklefolder_test"
+        pickle_file = f"multipendulum_test_{multipend_num}.pkl"
+        file_path_test_data = os.path.join(pickle_dir, pickle_file)
+        with open(file_path_test_data, "rb") as f:
+            data = pickle.load(f)
+            data_and_controls.append(data)
+
+        file_path_mass_length = "dataset_pendulum/dataset_test_logger.txt"
+        masses_temp, lengths_temp, K_values = get_mass_length_Ks_from_text_file(file_path_mass_length, multipend_num)
+        masses.append(masses_temp)
+        lengths.append(lengths_temp)
+        # X0s.append(generate_random_X0())
+        X0s.append(np.squeeze(data[0])[0].cpu().detach().numpy())
+
+    X0s_stored = X0s
+    
+    
     
     with open(log_info_path, "w") as file:
+        mse_results = {context_length: [] for context_length in contexts}
+        phase_data = {context_length: [] for context_length in contexts}
+        counter = 0
         for mass, length in tqdm(zip(masses, lengths), desc="MultiPendulum", total=len(masses), leave=False):
-            X0 = generate_random_X0()
-            # X0 = [np.pi/3,1.0]
-            # X0 = [-0.0811,  1.3219]
-            # X0 = [-0.08689436, 1.321947]
-            # X0 = [0.46671834184573213, -2.639731918107688]
-            # X0 = [np.pi/2, 3]
-            # X0 = [np.pi/2, 3]
-            # X0 = [3*np.pi/4, 5]
+            # X0 = generate_random_X0()
+            # X0 = [ 1.0852e+00, -1.3760e+00]
+            # X0 = [1.4575, 0.1397]
+            mse_per_context = []
+            # X0 = np.squeeze(data_controls[0])[0].cpu().detach().numpy()
+            # print(f"X0: {X0}")
+            # X0 = X0s.pop(0) 
 
-
-            T1, theta_rk4, thetadot_rk4, control_values_rk4, K_values = workCon.checking(
-                    X0, total_time, method='rk4', dt=dt, mass = mass, length = length
-                )
             
 
-            file.write(f"Current pendulum mass: {mass}\n")
-            file.write(f"Current pendulum length: {length}\n")
-            file.write(f"X0: {X0}\n")
-            file.write(f"T1 (RK4 Time): {T1}\n")
-            file.write(f"K_values (RK4 K_values): {K_values}\n\n")
+
+            # T1, theta_rk4, thetadot_rk4, control_values_rk4, K_values = workCon.checking(
+            #         X0, total_time, method='rk4', dt=dt, mass = mass, length = length
+            #     )
+
+            data_controls = data_and_controls[counter]
+            theta_rk4 = (np.squeeze(data_controls[0]).cpu().detach().numpy())[:, 0]
+            thetadot_rk4 = (np.squeeze(data_controls[0]).cpu().detach().numpy())[:, 1]
+            control_values_rk4 = (np.squeeze(data_controls[1]).cpu().detach().numpy())
+            
+
+            # file.write(f"Current pendulum mass: {mass}\n")
+            # file.write(f"Current pendulum length: {length}\n")
+            # file.write(f"X0: {X0}\n")
+            # # file.write(f"T1 (RK4 Time): {T1}\n")
+            # file.write(f"K_values (RK4 K_values): {K_values}\n\n")
 
 
             xs_dataset = np.column_stack((theta_rk4, thetadot_rk4))
             xs_dataset = torch.tensor(xs_dataset).float().cuda()
             control_values_rk4 = torch.tensor(control_values_rk4).float().cuda()
-            store_theta_model = []
-            store_thetadot_model = []
-            for start_index in start_indices:
-                file.write(f"  Start Index: {start_index}\n")
-                theta_rk4_temp = theta_rk4[start_index - 1:]
-                thetadot_rk4_temp = thetadot_rk4[start_index - 1:]
-                for context1 in tqdm(range(len(context_lengths)), desc=f"Context Loop (Start Index {start_index})", leave=False):
-                    if start_index < context1:
-                        continue
-                    # print(f"Context1: {context1 + 1}")
-                    T_model, theta_model2, thetadot_model2 = run_inference_on_model(
-                            model, xs_dataset, control_values_rk4, total_time, dt, context=context1 + 1, start_index=start_index, mass = mass, length = length
-                        )
-                    store_theta_model.append(theta_model2)
-                    store_thetadot_model.append(thetadot_model2)
-                    theta_model = theta_model2[context1:]
-                    thetadot_model = thetadot_model2[context1:]
-                    mse_loss = mse(theta_model, thetadot_model, theta_rk4_temp, thetadot_rk4_temp)
+            # store_theta_model = []
+            # store_thetadot_model = []
+            # for start_index in start_indices:
+            # for context in contexts:
+            for context in tqdm(contexts, desc="Context Loop", leave=False):
+                # file.write(f"  Start Index: {start_index}\n")
+                # theta_rk4_temp = theta_rk4[start_index-1:]
+                # thetadot_rk4_temp = thetadot_rk4[start_index-1:]
+
+                theta_rk4_temp = theta_rk4[context:]
+                thetadot_rk4_temp = thetadot_rk4[context:]
+
+                T_model, theta_model2, thetadot_model2 = run_inference_on_model(
+                    model, xs_dataset, control_values_rk4, total_time, dt, context=context, start_index=context, mass = mass, length = length
+                )
+                # store_theta_model.append(theta_model2)
+                # store_thetadot_model.append(thetadot_model2)
+
+                trajectory = np.stack([theta_model2, thetadot_model2], axis=1)
+                phase_data[context].append(trajectory)
+
+                theta_model = theta_model2[context:]
+                thetadot_model = thetadot_model2[context:]
+                mse_loss = mse(theta_model, thetadot_model, theta_rk4_temp, thetadot_rk4_temp)
+                mse_per_context.append(mse_loss)
 
 
-                    file.write(f"    Context1: {context1 + 1}\n")
-                    file.write(f"    Before Splice Theta Model: {theta_model2.tolist()}\n")
-                    file.write(f"    Before Splice Thetadot Model: {thetadot_model2.tolist()}\n")
-                    file.write(f"    Before Splice theta_rk4_temp: {theta_rk4.tolist()}\n")
-                    file.write(f"    Before Splice thetadot_rk4_temp: {thetadot_rk4.tolist()}\n")
-                    file.write(f"    After Splice Theta Model: {theta_model.tolist()}\n")
-                    file.write(f"    After Splice theta_rk4_temp: {theta_rk4_temp.tolist()}\n")
-                    file.write(f"    After Splice Thetadot Model: {thetadot_model.tolist()}\n")
-                    file.write(f"    After Splice thetadot_rk4_temp: {thetadot_rk4_temp.tolist()}\n")
-                    file.write(f"    MSE Loss: {mse_loss}\n")
-                    file.write(f"    Context Lengths (Accum MSE): {context_lengths}\n\n")
+            for idx, context_length in enumerate(contexts):
+                mse_results[context_length].append(mse_per_context[idx])
+            counter += 1
+            
+        mse_mean = {context_length: np.mean(mse_results[context_length]) for context_length in contexts}
+        mse_std = {context_length: np.std(mse_results[context_length]) for context_length in contexts}
+        # print(f"Mean MSE: {mse_mean}")
+        # print(f"Std MSE: {mse_std}")
+
+    plot_mse_vs_context_length(mse_mean, mse_std, save_results_path, folder_name, mse_plot_label)
+
+
+                # for context1 in tqdm(range(len(context_lengths)), desc=f"Context Loop (Start Index {start_index})", leave=False):
+                #     if start_index < context1:
+                #         continue
+                #     # print(f"Context1: {context1 + 1}")
+                #     T_model, theta_model2, thetadot_model2 = run_inference_on_model(
+                #             model, xs_dataset, control_values_rk4, total_time, dt, context=context1 + 1, start_index=start_index, mass = mass, length = length
+                #         )
+                #     store_theta_model.append(theta_model2)
+                #     store_thetadot_model.append(thetadot_model2)
+                #     theta_model = theta_model2[context1:]
+                #     thetadot_model = thetadot_model2[context1:]
+                #     # print(np.shape(theta_model2))
+                #     # print(np.shape(theta_model))
+                #     # print(np.shape(thetadot_model))
+                #     # print(np.shape(theta_rk4_temp))
+                #     # print(np.shape(thetadot_rk4_temp))
+                #     mse_loss = mse(theta_model, thetadot_model, theta_rk4_temp, thetadot_rk4_temp)
+
+
+                #     file.write(f"    Context1: {context1 + 1}\n")
+                #     file.write(f"    Before Splice Theta Model: {theta_model2.tolist()}\n")
+                #     file.write(f"    Before Splice Thetadot Model: {thetadot_model2.tolist()}\n")
+                #     file.write(f"    Before Splice theta_rk4_temp: {theta_rk4.tolist()}\n")
+                #     file.write(f"    Before Splice thetadot_rk4_temp: {thetadot_rk4.tolist()}\n")
+                #     file.write(f"    After Splice Theta Model: {theta_model.tolist()}\n")
+                #     file.write(f"    After Splice theta_rk4_temp: {theta_rk4_temp.tolist()}\n")
+                #     file.write(f"    After Splice Thetadot Model: {thetadot_model.tolist()}\n")
+                #     file.write(f"    After Splice thetadot_rk4_temp: {thetadot_rk4_temp.tolist()}\n")
+                #     file.write(f"    MSE Loss: {mse_loss}\n")
+                #     file.write(f"    Context Lengths (Accum MSE): {context_lengths}\n\n")
 
                     
-                    context_lengths[context1] += mse_loss
-                    if context1 == Num_of_context - 1:
-                        # theta_full_model = np.hstack((theta_model2,))
-                        print(np.shape(T_model))    
-                        print(np.shape(theta_model2))
-                        print(np.shape(thetadot_model2))
-                        theta_ivp, thetadot_ivp = plot_using_ivpsolver([theta_rk4[0],thetadot_rk4[0]], total_time, dt, mass, length)
-                        # theta_dmd, thetadot_dmd = dynamic_mode_decomposition(xs_dataset, X0, total_time, dt, context1)
-                        plot_phase_plot(theta_model2, thetadot_model2, theta_rk4, thetadot_rk4, theta_ivp, thetadot_ivp, theta_rk4, thetadot_rk4, context1+1, save_results_path, folder_name, plot_label)
-                        plot_time_series(T_model, theta_model2, thetadot_model2, theta_rk4, thetadot_rk4, context1+1, save_results_path, folder_name, plot_label)
-                        # print(len(theta_model))
-                        # print(len(theta_rk4))
-                        # print(len(theta_ivp))
-                        # print(len(theta_dmd))
-                        # print(f"theta_model: {theta_model}")
-                        # print(f"thetadot_model: {thetadot_model}")
+                #     context_lengths[context1] += mse_loss
+                #     if context1 == Num_of_context - 1:
+                #         # theta_full_model = np.hstack((theta_model2,))
+                #         # print(np.shape(T_model))    
+                #         # print(np.shape(theta_model2))
+                #         # print(np.shape(thetadot_model2))
+                #         # print(xs_dataset[start_index-(context1+1):start_index])
+                #         theta_dmd, thetadot_dmd = dynamic_mode_decomposition(xs_dataset[start_index-(context1+1):start_index], X0, total_time, dt, context1+1)
+                #         # plot_phase_plot(theta_model2, thetadot_model2, theta_rk4, thetadot_rk4, theta_ivp, thetadot_ivp, theta_rk4, thetadot_rk4, context1+1, save_results_path, folder_name, plot_label)
+                #         plot_phase_plot(theta_model2, thetadot_model2, theta_rk4, thetadot_rk4, theta_dmd, thetadot_dmd, context1+1, save_results_path, folder_name, plot_label)
+                #         # print(np.shape(theta_model2))
+                #         # print(np.shape(T_model))
+                #         # print(np.shape(theta_rk4))
+                #         plot_time_series(T_model, theta_model2, thetadot_model2, theta_rk4, thetadot_rk4, context1+1, save_results_path, folder_name, plot_label)
+                        
 
-    x_axis = list(range(1, len(context_lengths) + 1))
-    plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, phase_plot_label)
+    # x_axis = list(range(1, len(context_lengths) + 1))
+    # plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, phase_plot_label)
 
-    return X0, masses, lengths, store_theta_model, store_thetadot_model
+    # return X0, masses, lengths, store_theta_model, store_thetadot_model
+    return X0s_stored, masses, lengths, phase_data, data_and_controls, pends
 
 try:
     results = main()
@@ -505,7 +672,7 @@ try:
     # print(np.array(thetadot_models).shape)
 
     # save_results = os.join(folder_name, "results.pkl")
-    save_results = os.path.join(folder_name, f"results_maxcontext{Num_of_context}.pkl")
+    save_results = os.path.join(folder_name, f"results_maxcontext{Num_of_context}_numpends{Num_of_pendulums}.pkl")
 
     with open(save_results, "wb") as f:
         pickle.dump(results, f)

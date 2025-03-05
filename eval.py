@@ -14,7 +14,8 @@ from samplers import get_data_sampler, sample_transformation
 from tasks import get_task_sampler
 
 
-def get_model_from_run(run_path, step=-1, only_conf=False):
+# def get_model_from_run(run_path, step=-1, only_conf=False):
+def get_model_from_run(run_path, epoch, step=-1, only_conf=False):
     config_path = os.path.join(run_path, "config.yaml")
     with open(config_path) as fp:  # we don't Quinfig it to avoid inherits
         conf = Munch.fromDict(yaml.safe_load(fp))
@@ -30,7 +31,7 @@ def get_model_from_run(run_path, step=-1, only_conf=False):
         # model.load_state_dict(state["model_state_dict"])
         state_dict = state["model_state_dict"]
     else:
-        model_path = os.path.join(run_path, f"checkpoint_epoch50_step{step}.pt") #### ebonye 2/27/2025 change back to step{step}
+        model_path = os.path.join(run_path, f"checkpoint_epoch{epoch}_step{step}.pt") #### ebonye 2/27/2025 change back to step{step}, added epoch
         state_dict = torch.load(model_path)
         # model.load_state_dict(state_dict)
 

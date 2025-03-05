@@ -492,7 +492,7 @@ def main(args):
         )
 
     model = build_model(args.model)
-    device_ids = [3]
+    device_ids = [3, 0]
     model = torch.nn.DataParallel(model, device_ids=device_ids)
     model = model.to('cuda:3')
     # model.cuda()

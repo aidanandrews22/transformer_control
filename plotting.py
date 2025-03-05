@@ -13,6 +13,24 @@ import generate_dataset
 from scipy.integrate import solve_ivp
 import pickle
 
+def mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4):
+    """
+    Calculates the Mean Squared Error (MSE) between the predicted and true states.
+
+    Args:
+        theta_model (np.ndarray or list): Model's predicted theta 
+        thetadot_model (np.ndarray or list): Model's predicted thetadot 
+        theta_rk4 (np.ndarray or list): True theta using RK4
+        thetadot_rk4 (np.ndarray or list): True thetadot using RK4
+
+    Returns:
+        float: The computed MSE value, representing the average squared difference between 
+        the predicted and true states.
+    """
+    xs_pred = torch.tensor(np.column_stack((theta_model, thetadot_model)), dtype=torch.float32)
+    xs_true = torch.tensor(np.column_stack((theta_rk4, thetadot_rk4)), dtype=torch.float32)
+    return (xs_true - xs_pred).pow(2).mean().item()
+
 def generate_random_X0():
     """
     Generates a random initial state for a pendulum system.
@@ -42,77 +60,116 @@ def generate_random_X0():
 
     return [theta, thetadot]
 
-def plot_using_ivpsolver(X0, total_time, dt, mass, length):
-    """
-    Plots the phase plot of theta vs. thetadot using the IVP solver.
-    
-    Args:
-        X0 (list): Initial state of the pendulum [theta, thetadot].
-        total_time (float): Total duration of the simulation in seconds.
-        dt (float): Time step for the simulation.
-        mass (float): Mass of the pendulum.
-        length (float): Length of the pendulum.
-    """
-    T = np.arange(0, total_time + dt, dt)
-    n_steps = len(T)
+
+# def dynamic_mode_decomposition(XData, X0, total_time, dt, context):
+#         X_trunc = XData[0:context]
+#         Y_trunc = XData[1:context+1]
+#         X = X_trunc.T
+#         Y = Y_trunc.T
+#         X = X.cpu().detach().numpy()
+#         Y = Y.cpu().detach().numpy()
 
 
-    X0 = np.array(X0)
-    _,_,_,_,K = workCon.checking(X0, total_time, method='rk4', dt=dt, mass = mass, length = length)
-    K = np.squeeze(K)
-    def f(t,x):
-        b = 0.5
-        g = 9.81
-        x = np.array(x)
-        theta = x[0]
-        thetadot = x[1]
-        dtheta = thetadot
-        dthetadot = (-b * thetadot + mass * g * length * np.sin(theta) + (-K @ x)) / (mass * length**2)
+#         U, S, V = np.linalg.svd(X, full_matrices=False)
+
+#         ###### 2/17/2025 (ebonye): note V.T is really V
+#         Atilde = U.T @ Y @ V.T @ np.linalg.inv(np.diag(S))
+#         eigvals, eigvecs = np.linalg.eig(Atilde)
+#         Phi = Y @ V.T @ np.linalg.inv(np.diag(S)) @ eigvecs
+#         # b = np.linalg.pinv(Phi) @ X[:, 0]
+#         b = np.linalg.pinv(Phi) @ X0
+
+#         Omega = np.log(eigvals) / dt
+#         # omega = np.log(eigvals) / dt
+#         # Phi = np.linalg.multi_dot([XData[1:context-1].T, V, np.linalg.inv(np.diag(S)), U.T, eigvecs])
+#         # b = np.linalg.lstsq(Phi, XData[1:context-1].T @ A.T)[0]
+
+#         T = np.arange(0, total_time + dt, dt)
+#         X_dmd = np.zeros((len(Phi), len(T)), dtype=np.complex128)
+#         for i,t in enumerate(T):
+#             X_dmd[:,i] = (Phi @ (np.exp(Omega*t)*b)).real
+
+#         theta_dmd = X_dmd[0, :].real
+#         thetadot_dmd = X_dmd[1, :].real
+
+#         # print(theta_dmd)
+#         # print(thetadot_dmd)
         
-        return np.array([dtheta, dthetadot])
-    
-    solve = solve_ivp(f, [0, total_time], X0, t_eval=T)
-    theta = solve.y[0]
-    thetadot = solve.y[1]
-
-    return [theta, thetadot]
+#         return theta_dmd, thetadot_dmd
 
 def dynamic_mode_decomposition(XData, X0, total_time, dt, context):
-        X_trunc = XData[0:context]
-        Y_trunc = XData[1:context+1]
-        X = X_trunc.T
-        Y = Y_trunc.T
-        X = X.cpu().detach().numpy()
-        Y = Y.cpu().detach().numpy()
+        if context == 1:
+            ######## does not work well for one context
+            # Single snapshot, apply pseudo-DMD directly
+            X = XData.cpu().detach().numpy() if hasattr(XData, 'cpu') else XData
+            X = X.T
+            Y = X
+
+            # Regularize the inverse process (pseudo-DMD) for one snapshot
+            X_pseudo = (np.linalg.pinv(X.T @ X + 1e-6 * np.eye(X.shape[1])) @ X.T).T
+            # print(np.shape(X_pseudo))
+            U, S, V = np.linalg.svd(X_pseudo, full_matrices=False)
+            # print(np.shape(U))
+            # print(np.shape(S))
+            # print(np.shape(V))
+            # print(np.shape(X))
+            # print(np.shape(Y))
+            Atilde = U.T @ Y @ V.T @ np.linalg.inv(np.diag(S))
+            eigvals, eigvecs = np.linalg.eig(Atilde)
+            # print(f'Eigenvalues:{eigvals}')
+            # print(np.shape(Atilde))
+            # Phi = Y @ V.T @ np.linalg.inv(np.diag(S)) @ eigvecs
+            # Phi = eigvecs
+            # print(np.shape(Phi))
+
+        else:
+            X_trunc = XData[0:context-2+1]
+            Y_trunc = XData[1:context-1+1]
+            X = X_trunc.T
+            Y = Y_trunc.T
+            X = X.cpu().detach().numpy() if hasattr(X, 'cpu') else X
+            Y = Y.cpu().detach().numpy() if hasattr(Y, 'cpu') else Y
 
 
-        U, S, V = np.linalg.svd(X, full_matrices=False)
+            U, S, V = np.linalg.svd(X, full_matrices=False)
+            # print(f'Context: {context}')
+            # print(f'X_trunc: {X_trunc}')
+            # print(f'Y_trunc: {Y_trunc}')
+            # print(f'X: {X}')
+            # print(f'Y: {Y}')
+            # print(f'U: {U}')
+            # print(f'S: {S}')
+            # print(f'V: {V}')
 
-        ###### 2/17/2025 (ebonye): note V.T is really V
-        Atilde = U.T @ Y @ V.T @ np.linalg.inv(np.diag(S))
-        eigvals, eigvecs = np.linalg.eig(Atilde)
+            # A = np.linalg.multi_dot([Y, V.T, np.linalg.inv(np.diag(S)) , U.T])
+            Atilde = U.T @ Y @ V.T @ np.linalg.inv(np.diag(S))
+
+            eigvals, eigvecs = np.linalg.eig(Atilde)
+            # print(f'Atilde: {Atilde}')
+            # print(f'Eigenvalues of Atilde:{eigvals}')
+            # print(f'Eigenvecs of Atilde:{eigvecs}')
+        
         Phi = Y @ V.T @ np.linalg.inv(np.diag(S)) @ eigvecs
         # b = np.linalg.pinv(Phi) @ X[:, 0]
         b = np.linalg.pinv(Phi) @ X0
 
         Omega = np.log(eigvals) / dt
+        # print(f'Omega: {Omega}')
         # omega = np.log(eigvals) / dt
         # Phi = np.linalg.multi_dot([XData[1:context-1].T, V, np.linalg.inv(np.diag(S)), U.T, eigvecs])
         # b = np.linalg.lstsq(Phi, XData[1:context-1].T @ A.T)[0]
 
-        T = np.arange(0, total_time + dt, dt)
+        T = np.arange(0, total_time, dt)
+        Tnew = T[context:]
         X_dmd = np.zeros((len(Phi), len(T)), dtype=np.complex128)
-        for i,t in enumerate(T):
-            X_dmd[:,i] = (Phi @ (np.exp(Omega*t)*b)).real
+        X_dmd[:, 0:context] = (XData[0:context].cpu().detach().numpy() if hasattr(XData, 'cpu') else XData[0:context]).T
+        for i,t in enumerate(Tnew):
+            X_dmd[:,i+context] = (Phi @ (b*np.exp(Omega*t))).real
 
         theta_dmd = X_dmd[0, :].real
         thetadot_dmd = X_dmd[1, :].real
-
-        # print(theta_dmd)
-        # print(thetadot_dmd)
         
         return theta_dmd, thetadot_dmd
-
 
 def load_data(data_path):
     with open(data_path, 'rb') as f:
@@ -181,39 +238,39 @@ for mass, length in tqdm(zip(masses, lengths), desc="MultiPendulum", total=len(m
 
 
 
-#### Plot time series plot one pendulum model included
-plt.figure()
-plt.plot(Time[0], thetas_rk4[0], label=f"theta rk4")
-plt.plot(Time[0], thetadots_rk4[0], label=f"thetadot rk4")
-if context == start_index:
-    plt.plot(Time[0, start_index - context:], thetas_dmd[0][:], label=f"theta dmd")
-    plt.plot(Time[0, start_index - context:], thetadots_dmd[0][:], label=f"thetadot dmd")
-else:
-    plt.plot(Time[0, start_index - context:], thetas_dmd[0][:-(start_index-context)], label=f"theta dmd")
-    plt.plot(Time[0, start_index - context:], thetadots_dmd[0][:-(start_index-context)], label=f"thetadot dmd")
-plt.plot(Time[0], theta_model_final, label=f"theta model")
-plt.plot(Time[0], thetadot_model_final, label=f"thetadot model")
-plt.plot(Time[0, start_index - context], theta_model_context[0], 'bo', label='Context examples given')
-plt.plot(Time[0, start_index - context], thetadot_model_context[0], 'bo', label='Context examples given')
-plt.plot(Time[0, start_index-1], thetas_rk4[0, start_index-1], 'ro', label='ICL begins')
-plt.plot(Time[0, start_index-1], thetadots_rk4[0, start_index-1], 'ro', label='ICL begins')
-plt.xlabel('Time')
-plt.ylabel('Values')
-plt.title(f'RK4 vs DMD: Context length {context}')
-plt.legend()
-plt.savefig('rk4_vs_dmd.png')
+# #### Plot time series plot one pendulum model included
+# plt.figure()
+# plt.plot(Time[0], thetas_rk4[0], label=f"theta rk4")
+# plt.plot(Time[0], thetadots_rk4[0], label=f"thetadot rk4")
+# if context == start_index:
+#     plt.plot(Time[0, start_index - context:], thetas_dmd[0][:], label=f"theta dmd")
+#     plt.plot(Time[0, start_index - context:], thetadots_dmd[0][:], label=f"thetadot dmd")
+# else:
+#     plt.plot(Time[0, start_index - context:], thetas_dmd[0][:-(start_index-context)], label=f"theta dmd")
+#     plt.plot(Time[0, start_index - context:], thetadots_dmd[0][:-(start_index-context)], label=f"thetadot dmd")
+# plt.plot(Time[0], theta_model_final, label=f"theta model")
+# plt.plot(Time[0], thetadot_model_final, label=f"thetadot model")
+# plt.plot(Time[0, start_index - context], theta_model_context[0], 'bo', label='Context examples given')
+# plt.plot(Time[0, start_index - context], thetadot_model_context[0], 'bo', label='Context examples given')
+# plt.plot(Time[0, start_index-1], thetas_rk4[0, start_index-1], 'ro', label='ICL begins')
+# plt.plot(Time[0, start_index-1], thetadots_rk4[0, start_index-1], 'ro', label='ICL begins')
+# plt.xlabel('Time')
+# plt.ylabel('Values')
+# plt.title(f'RK4 vs DMD: Context length {context}')
+# plt.legend()
+# plt.savefig('rk4_vs_dmd.png')
 
-plt.figure()
-plt.plot(thetas_rk4[0], thetadots_rk4[0], marker='x', color='black', label='RK4')
-plt.plot(thetas_dmd[0], thetadots_dmd[0], marker='^', label='DMD')
-plt.plot(theta_model_final, thetadot_model_final, marker='s', alpha=0.2, label='Model')
-plt.plot(theta_model_context[0], thetadot_model_context[0], 'bo', label='Context examples given')
-plt.plot(thetas_rk4[0, start_index-1], thetadots_rk4[0, start_index-1], 'ro', label='ICL begins')
-plt.xlabel('Theta')
-plt.ylabel('ThetaDot')
-plt.title(f'Phase Plot: Context length {context}')
-plt.legend()
-plt.savefig('phase_plot.png')
+# plt.figure()
+# plt.plot(thetas_rk4[0], thetadots_rk4[0], marker='x', color='black', label='RK4')
+# plt.plot(thetas_dmd[0], thetadots_dmd[0], marker='^', label='DMD')
+# plt.plot(theta_model_final, thetadot_model_final, marker='s', alpha=0.2, label='Model')
+# plt.plot(theta_model_context[0], thetadot_model_context[0], 'bo', label='Context examples given')
+# plt.plot(thetas_rk4[0, start_index-1], thetadots_rk4[0, start_index-1], 'ro', label='ICL begins')
+# plt.xlabel('Theta')
+# plt.ylabel('ThetaDot')
+# plt.title(f'Phase Plot: Context length {context}')
+# plt.legend()
+# plt.savefig('phase_plot.png')
 
 
 

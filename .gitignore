@@ -1,3 +1,3 @@
-dataset_pendulum/picklefolder
-dataset_pendulum/picklefolder_test
+dataset_pendulum/
 models/test
+inference_run/

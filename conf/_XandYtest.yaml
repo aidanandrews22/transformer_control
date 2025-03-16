@@ -10,13 +10,14 @@ training:
     task: linear_regression   # Dont need this, change schema later
     data: gaussian # Dont need this, change schema later
     task_kwargs: {} # Dont need this, change schema later
-    epochs: 50
+    epochs: 125 #50
     batch_size: 1 #64 #1
-    learning_rate: 0.00001585 #0.00005 #0.0001
-    save_every_steps: 5000
-    keep_every_steps: 5000
-    train_steps: 40000 #320000 #100000 #80000 #5000 #1000000
-    test_pendulums: 10000
+    learning_rate: 0.0005 #0.00001585 #0.0003 #0.00001585 #0.00005 #0.0001
+    save_every_steps: 400 #1000
+    keep_every_steps: 400 #1000
+    train_steps: 50000 #50000 #320000 #100000 #80000 #5000 #1000000
+    test_pendulums: 5000
+    test_pendulums_outofdistr: 5000
     curriculum:
         dims:
             start: 2
@@ -30,7 +31,7 @@ training:
             interval: 2000000000
 
 wandb:
-    name: "Same length trajectories 500; rand init cond [np.pi/5,np.pi/2]; Q[4,1]; R[4]"
+    name: "Same length trajectories 500; rand init cond [np.pi/5,7*np.pi/6]; Q[4,1]; R[4]"
     entity: "ebonyesmith-uc-berkeley-electrical-engineering-computer-" #"afrias5"
     project: "test"
 
@@ -39,16 +40,18 @@ wandb:
 
 dataset_filesfolder: "./dataset_pendulum" #Folder that stores all your pickle files and logging info
 pickle_folder: "picklefolder"  # Subfolder of dataset_filesfolder that will have all your trainingpkl files
-pickle_folder_test: "picklefolder_test"  # Subfolder of dataset_filesfolder that will have all your test pkl files
+pickle_folder_test: "picklefolder_test_indistr"  # Subfolder of dataset_filesfolder that will have all your test pkl files
+pickle_folder_test_outofdistr: "picklefolder_test_outofdistr"  # Subfolder of dataset_filesfolder that will have all your test pkl files
 # dataset_logger_textfile: "dataset_logger.txt" # Used in getData2.py for logging dataset information. Located in dataset_filesfolder
-dataset_logger_textfile: "dataset_logger_noreseeding.txt" 
+dataset_logger_textfile: "dataset_logger_train.txt" 
 dataset_test_logger_textfile: "dataset_test_logger.txt" 
+dataset_test_outofdistr_logger_textfile: "dataset_test_outofdistr_logger.txt"
 
 
 out_dir: ./models/test #Where to store model checkpoints
 model_logger_textfile: "testing.txt"   #Name of txt file to save training info. Located it out_dir
 test_run: False              # For debugging, this will not save checkpoints or log to wandb
-use_chunk: 500                 # How you want to split dataset into chunks. 1 means load everything
+use_chunk: 1 #50                 # How you want to split dataset into chunks. 1 means load everything
 loss: "mean_squared_error"   #Specify which loss to use in the tasks.py file
 
 

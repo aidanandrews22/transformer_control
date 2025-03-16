@@ -47,7 +47,7 @@ def generate_random_X0():
 
     return [theta, thetadot]
 
-def mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4):
+def mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4, device):
     """
     Calculates the Mean Squared Error (MSE) between the predicted and true states.
 
@@ -61,9 +61,25 @@ def mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4):
         float: The computed MSE value, representing the average squared difference between 
         the predicted and true states.
     """
-    xs_pred = torch.tensor(np.column_stack((theta_model, thetadot_model)), dtype=torch.float32)
-    xs_true = torch.tensor(np.column_stack((theta_rk4, thetadot_rk4)), dtype=torch.float32)
+    xs_pred = torch.tensor(np.column_stack((theta_model, thetadot_model)), dtype=torch.float32, device=device)
+    xs_true = torch.tensor(np.column_stack((theta_rk4, thetadot_rk4)), dtype=torch.float32, device=device)
     return (xs_true - xs_pred).pow(2).mean().item()
+
+def mse_controls(control_values_model, control_values_rk4, device):
+    """
+    Calculates the Mean Squared Error (MSE) between the predicted and true control values.
+
+    Args:
+        control_values_model (np.ndarray or list): Model's predicted control values
+        control_values_rk4 (np.ndarray or list): True control values using RK4
+
+    Returns:
+        float: The computed MSE value, representing the average squared difference between 
+        the predicted and true control values.
+    """
+    control_pred = torch.tensor(control_values_model, dtype=torch.float32, device=device)
+    control_true = torch.tensor(control_values_rk4, dtype=torch.float32, device=device)
+    return (control_true - control_pred).pow(2).mean().item()
 
 def get_mass_length_Ks_from_text_file(file_path, target_iteration):
     """
@@ -112,7 +128,7 @@ def get_mass_length_Ks_from_text_file(file_path, target_iteration):
 
 
 
-def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, start_index=1, mass = 1, length = 1):
+def run_inference_on_model(model, XData, YS, total_time, device, dt=0.01, context=1, start_index=1, mass = 1, length = 1):
     """
     Runs inference on a trained model to simulate the dynamics of a pendulum system over time, given an initial state and context data.
 
@@ -121,6 +137,7 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
         XData (torch.Tensor): The input state  (e.g., [theta, thetadot])
         YS (torch.Tensor): The ground truth control input data
         total_time (float): Total duration of the simulation in seconds.
+        device (torch.device): The device to run the simulation on.
         dt (float, optional): Time step for the simulation. Defaults to 0.01.
         context (int, optional): The number of previous time steps used as context for the model. Defaults to 1.
         start_index (int, optional): The starting index for inference. Must be at least equal to `context`. Defaults to 1.
@@ -137,7 +154,8 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
         AssertionError: If `start_index` is less than `context`.
     """
     assert start_index >= context, "start_index must be at least equal to context"
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
   
     T = np.arange(0, total_time, dt)
@@ -181,11 +199,12 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
   
     theta_model = XData_context[:, 0].cpu().numpy()
     thetadot_model = XData_context[:, 1].cpu().numpy()
-    return T, theta_model, thetadot_model
+    return T, theta_model, thetadot_model, YS_context
 
 
 # def load_model(run_dir, name, run_id, step):
 def load_model(run_dir, name, run_id, step, epoch):
+    # def load_model(run_dir, name, run_id, step, epoch, phase):
     """
     Loads a pre-trained model and its configuration from a specified run directory.
 
@@ -202,61 +221,132 @@ def load_model(run_dir, name, run_id, step, epoch):
     """
     run_path = os.path.join(run_dir, name, run_id)
     model, conf = get_model_from_run(run_path, epoch= epoch, step=step)
+    # model, conf = get_model_from_run(run_path, epoch= epoch, phase=phase, step=step)
     return model, conf
 
-model_name= "test"
-model_run_id= "06a99b9e-ff31-4a4e-a3bf-191df6b0b787"
-model_checkpoint_step= 5000 #125000
-model_checkpoint_epoch = 2 #50
-context = 20
-start_index = context
+def get_checkpoints_from_folder(run_dir, name, run_id):
+    """
+    Returns a list of checkpoint files from a specified run directory.
 
+    Args:
+        run_dir (str): The base directory containing the model runs.
+        name (str): The name of the model
+        run_id (str): The unique identifier for the specific run to load the model from.
+
+    Returns:
+        list: A list of checkpoint files in the specified run directory.
+    """
+    run_path = os.path.join(run_dir, name, run_id)
+    checkpoint_files = [f for f in os.listdir(run_path) if f.startswith("checkpoint")]
+
+    pattern = r"epoch(\d+)_step(\d+)"
+
+    extracted = []
+
+    for file in checkpoint_files:
+        match = re.search(pattern, file)
+        if match:
+            epoch = int(match.group(1))
+            step = int(match.group(2))
+            extracted.append((epoch, step, file))
+
+    extracted.sort()
+
+    sorted_files = [item[2] for item in extracted]
+    epochs = [item[0] for item in extracted]
+    steps = [item[1] for item in extracted]
+    return sorted_files, epochs, steps
+
+model_name= "test"
+model_run_id= "9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
+mode = "indistr" # "indistr" or "ood"
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# model_checkpoint_step= 400 #125000
+# model_checkpoint_epoch = 1 #50
+phase = 1
+context = 30
+start_index = context
+random.seed(42)
+np.random.seed(42)
+
+files, epochs, steps = get_checkpoints_from_folder("./models", model_name, model_run_id)
+
+
+# import pdb; pdb.set_trace()
 
 ### Load models
 models = []
 model_steps = []
-while True:
-    try:
-        model, _ = load_model(
+
+for epoch, step, file in zip(epochs, steps, files):
+    model, _ = load_model(
         run_dir="./models",
         name= model_name,
         run_id= model_run_id,
-        step=model_checkpoint_step,
-        epoch=model_checkpoint_epoch)
+        step=step,
+        epoch=epoch)
+    models.append(model)
+    model_steps.append(step)
+    print(f"Model loaded at epoch {epoch} step {step}")
 
-        models.append(model)
-        model_steps.append(model_checkpoint_step)
-        model_checkpoint_step += 5000
-        model_checkpoint_epoch += 2
-        print(f"Model loaded at step {model_checkpoint_step}")
-    except:
+# i=1
+# while True:
+#     try:
+#         model, _ = load_model(
+#         run_dir="./models",
+#         name= model_name,
+#         run_id= model_run_id,
+#         step=model_checkpoint_step,
+#         epoch=model_checkpoint_epoch)
 
-        break
+#         models.append(model)
+#         model_steps.append(model_checkpoint_step)
+#         print(f"Model loaded at epoch {model_checkpoint_epoch} step {model_checkpoint_step}")
+   
+#         model_checkpoint_step += 800
+#         model_checkpoint_epoch += 1 #i//2 #1
+        
+#     except:
 
-pends = np.arange(0, 2000, 1)
+#         break
+#         # continue
+
+# import pdb; pdb.set_trace()
+
+pends = np.random.choice(np.arange(0, 5, 1), 5, replace=False)
 masses = []
 lengths = []
 X0s = []
 data_and_controls = []
 for multipend_num in pends:
-    pickle_dir = "dataset_pendulum/picklefolder_test"
-    pickle_file = f"multipendulum_test_{multipend_num}.pkl"
+    if mode == "ood":
+        pickle_dir = "dataset_pendulum/picklefolder_test_outofdistr"
+        pickle_file = f"multipendulum_test_outofdistr_{multipend_num}.pkl"
+        file_path_mass_length = "dataset_pendulum/dataset_test_outofdistr_logger.txt"
+
+    elif mode == "indistr":
+        pickle_dir = "dataset_pendulum/picklefolder_test_indistr"
+        pickle_file = f"multipendulum_test_{multipend_num}.pkl"
+        file_path_mass_length = "dataset_pendulum/dataset_test_logger.txt"
+    else:
+        raise ValueError("Invalid mode. Choose either 'indistr' or 'ood'.")
+
     file_path_test_data = os.path.join(pickle_dir, pickle_file)
     with open(file_path_test_data, "rb") as f:
         data = pickle.load(f)
         data_and_controls.append(data)
 
-    file_path_mass_length = "dataset_pendulum/dataset_test_logger.txt"
+    
     masses_temp, lengths_temp, K_values = get_mass_length_Ks_from_text_file(file_path_mass_length, multipend_num)
     masses.append(masses_temp)
     lengths.append(lengths_temp)
-    # X0s.append(generate_random_X0())
     X0s.append(np.squeeze(data[0])[0].cpu().detach().numpy())
     print("finished loading pendulum number: ", multipend_num)
 
 X0s_stored = X0s
 
 mse_results = {step : [] for step in model_steps}
+mse_controls_results = {step : [] for step in model_steps}
 
 for i, model in enumerate(models):
     for j, data_controls in enumerate(data_and_controls):
@@ -280,20 +370,29 @@ for i, model in enumerate(models):
         control_values_rk4 = torch.tensor(control_values_rk4).float().cuda()
 
 
-        T, theta_model, thetadot_model = run_inference_on_model(model, xs_dataset, control_values_rk4, total_time, dt, context, start_index, mass, length)
+        T, theta_model, thetadot_model, control_values_model = run_inference_on_model(model, xs_dataset, control_values_rk4, total_time, device, dt, context, start_index, mass, length)
         theta_model_temp = theta_model[context:]
         thetadot_model_temp = thetadot_model[context:]
         theta_rk4_temp = theta_rk4[context:]
         thetadot_rk4_temp = thetadot_rk4[context:]
+        control_values_model_temp = control_values_model[context-1:]
+        control_values_rk4_temp = control_values_rk4[context:]
         # mse_val = mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4)
-        mse_val = mse(theta_model_temp, thetadot_model_temp, theta_rk4_temp, thetadot_rk4_temp)
+        mse_val = mse(theta_model_temp, thetadot_model_temp, theta_rk4_temp, thetadot_rk4_temp, device)
+        mse_controls_val = mse_controls(control_values_model_temp, control_values_rk4_temp, device)
         mse_results[model_steps[i]].append(mse_val)
-        print(f"Model step: {model_steps[i]}, Pendulum number: {j}, MSE: {mse_val}")
+        mse_controls_results[model_steps[i]].append(mse_controls_val)
 
+        print(f"Model step: {model_steps[i]}, Pendulum number: {j}, MSE state: {mse_val}, MSE controls: {mse_controls_val}")
 
-# Save the MSE results
-with open("mse_results.pkl", "wb") as f:
-    pickle.dump(mse_results, f)
+all_results = {"mse_results": mse_results, "mse_controls_results": mse_controls_results}
+# Save the results
+with open(f"all_results_5pend_{mode}_{model_run_id}.pkl", "wb") as f:
+    pickle.dump(all_results, f)
+
+# # Save the MSE results
+# with open(f"mse_results_5pend_{mode}_{model_run_id}.pkl", "wb") as f:
+#     pickle.dump(mse_results, f)
 
 
 

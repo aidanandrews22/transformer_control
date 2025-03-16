@@ -24,7 +24,7 @@ def build_model(conf):
             n_positions=conf.n_positions,
             n_embd=conf.n_embd,
             n_layer=conf.n_layer,
-            n_head=conf.n_head,
+            n_head=conf.n_head, 
         )
     else:
         raise NotImplementedError
@@ -86,7 +86,8 @@ def get_relevant_baselines(task_name):
 class TransformerModel(nn.Module):
 # class TransformerModel(pl.LightningModule):
     # def __init__(self, n_dims, n_positions, n_embd=128, n_layer=12, n_head=4):
-    def __init__(self, n_dims, n_positions, n_embd=128, n_layer=12, n_head=8):
+    # def __init__(self, n_dims, n_positions, n_embd=128, n_layer=12, n_head=8):
+    def __init__(self, n_dims, n_positions, n_embd=256, n_layer=12, n_head=8):
         super(TransformerModel, self).__init__()
         configuration = GPT2Config(
             n_positions=2 * n_positions,

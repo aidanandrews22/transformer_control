@@ -59,15 +59,15 @@ def get_valid_masses_and_lengths( dt=0.01, mean=3, variance=1, lowerbound=1, upp
         # seed[0] += 1
         # reseed_all(seed[0])
 
-def get_valid_masses_and_lengths_uniform():
+def get_valid_masses_and_lengths_uniform( dt=0.01, masslowerbound=0.06, massupperbound=0.17, lengthlowerbound=0.2, lengthupperbound=0.55):
     """
     Samples valid masses and lengths for a pendulum system that meet specific constraints, using a uniform distribution.
 
     Args:
-        masslowerbound (float, optional): The lower bound for the mass value. Defaults to 0.08.
-        massupperbound (float, optional): The upper bound for the mass value. Defaults to 0.12.
-        lengthlowerbound (float, optional): The lower bound for the length value. Defaults to 0.25.
-        lengthupperbound (float, optional): The upper bound for the length value. Defaults to 0.45.
+        masslowerbound (float, optional): The lower bound for the mass value. Defaults to 0.06.
+        massupperbound (float, optional): The upper bound for the mass value. Defaults to 0.17.
+        lengthlowerbound (float, optional): The lower bound for the length value. Defaults to 0.2.
+        lengthupperbound (float, optional): The upper bound for the length value. Defaults to 0.55.
 
     Returns:
         tuple: A tuple containing:
@@ -75,9 +75,14 @@ def get_valid_masses_and_lengths_uniform():
             - lengths (float): A valid length value sampled from the uniform distribution.
     """
     while True:
-        masses = sample_mass_uniform()
-        lengths = sample_length_uniform()
-        if is_valid_mass_length(masses, lengths, dt=0.01):
+        # masses = sample_mass_uniform()
+        # lengths = sample_length_uniform()
+        # if is_valid_mass_length(masses, lengths, dt=0.01):
+        #     return masses, lengths
+
+        masses = sample_mass_uniform(masslowerbound, massupperbound)
+        lengths = sample_length_uniform(lengthlowerbound, lengthupperbound)
+        if is_valid_mass_length(masses, lengths, dt=dt):
             return masses, lengths
         # seed[0] += 1
         # reseed_all(seed[0])
@@ -102,7 +107,7 @@ def sample_bounded_gaussian(mean=3, stddev=1, lower_bound=1, upper_bound=5):
         # seed[0] += 1
         # reseed_all(seed[0])
 
-def sample_mass_uniform(lower_bound=0.06, upper_bound=0.17):
+def sample_mass_uniform(lower_bound=0.06, upper_bound=2.06):
     # before: 0.08, 0.12 #### 2/24/2025 (ebonye) make wider range
     """
     Samples a mass value from a uniform distribution within specified bounds.
@@ -119,7 +124,7 @@ def sample_mass_uniform(lower_bound=0.06, upper_bound=0.17):
     # reseed_all(seed[0])
     return value
 
-def sample_length_uniform(lower_bound=0.2, upper_bound=0.55):
+def sample_length_uniform(lower_bound=0.2, upper_bound=2.2):
     #before: lower_bound=0.25, upper_bound=0.45 #### 2/24/2025 (ebonye) make wider range
     """
     Samples a length value from a uniform distribution within specified bounds.
@@ -158,7 +163,7 @@ def is_valid_mass_length(mass, length, dt):
         return False
     return True
 
-def generate_random_X0():
+def generate_random_X0_old():
     """
     Generates a random initial state for a pendulum system.
 
@@ -181,6 +186,19 @@ def generate_random_X0():
     # thetadot_ranges = [(-20.0, -11.0), (11.0, 20.0)]
     # thetadot_choice = np.random.choice([0, 1])
     # thetadot = np.random.uniform(*thetadot_ranges[thetadot_choice])
+    return [theta, thetadot]
+
+def generate_random_X0(theta_range=(-np.pi, np.pi), thetadot_range=(-3, 3)):
+    """
+    Generates a random initial state for a pendulum system.
+
+    Returns:
+        list: A list containing:
+            - theta (float): A randomly generated theta, sampled uniformly from range [-π, π].
+            - thetadot (float): A randomly generated thetadot, sampled uniformly from the range [-10, 10].
+    """
+    theta = np.random.uniform(*theta_range)
+    thetadot = np.random.uniform(*thetadot_range)
     return [theta, thetadot]
 
 def save_pickle(data, pickle_path):
@@ -262,38 +280,122 @@ def make_train_data(args):
     curriculum = Curriculum(args.training.curriculum)
     starting_step = 0
     bsize = args.training.batch_size
-    pbar = tqdm(range(starting_step, args.training.train_steps + args.training.test_pendulums)) 
+    pbar = tqdm(range(starting_step, args.training.train_steps + args.training.test_pendulums + args.training.test_pendulums_outofdistr)) 
     # pbar_test = tqdm(range(args.training.test_pendulums))
     # num_test_pendulums = args.training.test_pendulums
 
     # seed_file = os.path.join(args.dataset_filesfolder, args.dataset_logger_textfile)
     train_logger = os.path.join(args.dataset_filesfolder, args.dataset_logger_textfile)
     test_logger = os.path.join(args.dataset_filesfolder, args.dataset_test_logger_textfile)
+    test_logger_outofdistr = os.path.join(args.dataset_filesfolder, args.dataset_test_outofdistr_logger_textfile) ## 3/5/2025 out of distribution data
     base_data_dir = os.path.join(args.dataset_filesfolder, args.pickle_folder)
     test_data_dir = os.path.join(args.dataset_filesfolder, args.pickle_folder_test)
+    test_data_dir_outofdistr = os.path.join(args.dataset_filesfolder, args.pickle_folder_test_outofdistr) ## 3/5/2025 out of distribution data
     os.makedirs(base_data_dir, exist_ok=True)
     os.makedirs(test_data_dir, exist_ok=True)
+    os.makedirs(test_data_dir_outofdistr, exist_ok=True) ## 3/5/2025 out of distribution data
+    
+    # easy_data_dir = os.path.join(base_data_dir, "easy")
+    # medium_data_dir = os.path.join(base_data_dir, "medium")
+    # hard_data_dir = os.path.join(base_data_dir, "hard")
+    # extreme_data_dir = os.path.join(base_data_dir, "extreme")
+    # os.makedirs(easy_data_dir, exist_ok=True)
+    # os.makedirs(medium_data_dir, exist_ok=True)
+    # os.makedirs(hard_data_dir, exist_ok=True)
+    # os.makedirs(extreme_data_dir, exist_ok=True)
+
     # X0 = generate_random_X0()
     # X0 = [0.46671834184573213, -2.639731918107688] #### 2/24/2025 (ebonye) 4c4aa2ff... model
     # X0 = [np.pi/2, 3]
+
+    ##### 3/6/2025 (ebonye) curriculum learning
+    # easy_traj = 22000 #28333 #int(args.training.train_steps * 0.4)
+    # medium_traj = 17000 #13333 #int(args.training.train_steps * 0.3)
+    # hard_traj = 14000 #5834 #int(args.training.train_steps * 0.2)
+    # extreme_traj = 10,000 #2500 #args.training.train_steps - easy_traj - medium_traj - hard_traj
     for i in pbar:
         # reseed_all(seed[0]+i)
         
-        masses, lengths = get_valid_masses_and_lengths_uniform()
-        # sampler = PendulumSampler(n_dims=2, init_conditions=X0)
-        sampler = PendulumSampler(n_dims=2)
-        # T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, bsize, mass = masses, length = lengths)
-        T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
+        # masses, lengths = get_valid_masses_and_lengths_uniform()
+        # # sampler = PendulumSampler(n_dims=2, init_conditions=X0)
+        # sampler = PendulumSampler(n_dims=2)
+        # # T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, bsize, mass = masses, length = lengths)
+        # T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
+        
         if i < args.training.train_steps:
+            masses, lengths = get_valid_masses_and_lengths_uniform()
+            # sampler = PendulumSampler(n_dims=2, init_conditions=X0)
+            sampler = PendulumSampler(n_dims=2)
+            # T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, bsize, mass = masses, length = lengths)
+            T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
             pickle_file = f'multipendulum_{i}.pkl'
             pickle_path = os.path.join(base_data_dir, pickle_file)
-            save_pickle((xs, control_values), pickle_path)
+            # save_pickle((xs, control_values), pickle_path)
+            save_pickle((xs, control_values, masses, lengths), pickle_path)
             append_to_dataset_logger(i, masses, lengths, k_values, xs.shape, train_logger)
-        else:
+        
+        # if i < easy_traj:
+        #     masses, lengths = get_valid_masses_and_lengths_uniform(masslowerbound=0.06, massupperbound=0.08, lengthlowerbound=0.2, lengthupperbound=0.25)
+        #     X0 = generate_random_X0(theta_range=(-np.pi/12, np.pi/12), thetadot_range=(-0.5, 0.5))
+        #     sampler = PendulumSampler(n_dims=2, init_conditions=X0)
+        #     T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
+        #     pickle_file = f'multipendulum_{i}.pkl'
+        #     pickle_path = os.path.join(easy_data_dir, pickle_file)
+        #     save_pickle((xs, control_values), pickle_path)
+        #     append_to_dataset_logger(i, masses, lengths, k_values, xs.shape, train_logger)
+        # elif i >= easy_traj and i < easy_traj + medium_traj:
+        #     mass, lengths = get_valid_masses_and_lengths_uniform(masslowerbound=0.08, massupperbound=0.13, lengthlowerbound=0.25, lengthupperbound=0.45)
+        #     X0 = generate_random_X0(theta_range=(-np.pi/3, np.pi/3), thetadot_range=(-1, 1))
+        #     sampler = PendulumSampler(n_dims=2, init_conditions=X0)
+        #     T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
+        #     pickle_file = f'multipendulum_{i - easy_traj}.pkl'
+        #     pickle_path = os.path.join(medium_data_dir, pickle_file)
+        #     save_pickle((xs, control_values), pickle_path)
+        #     append_to_dataset_logger(i, masses, lengths, k_values, xs.shape, train_logger)
+        # elif i >= easy_traj + medium_traj and i < easy_traj + medium_traj + hard_traj:
+        #     masses, lengths = get_valid_masses_and_lengths_uniform(masslowerbound=0.13, massupperbound=0.17, lengthlowerbound=0.45, lengthupperbound=0.55)
+        #     X0 = generate_random_X0(theta_range=(-np.pi/2, np.pi/2), thetadot_range=(-2, 2))
+        #     sampler = PendulumSampler(n_dims=2, init_conditions=X0)
+        #     T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
+        #     pickle_file = f'multipendulum_{i-easy_traj-medium_traj}.pkl'
+        #     pickle_path = os.path.join(hard_data_dir, pickle_file)
+        #     save_pickle((xs, control_values), pickle_path)
+        #     append_to_dataset_logger(i, masses, lengths, k_values, xs.shape, train_logger)
+        # elif i >= easy_traj + medium_traj + hard_traj and i < args.training.train_steps:
+        #     masses, lengths = get_valid_masses_and_lengths_uniform(masslowerbound=0.13, massupperbound=0.17, lengthlowerbound=0.45, lengthupperbound=0.55)
+        #     X0 = generate_random_X0(theta_range=(-np.pi, np.pi), thetadot_range=(-3, 3))
+        #     sampler = PendulumSampler(n_dims=2, init_conditions=X0)
+        #     T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
+        #     pickle_file = f'multipendulum_{i-easy_traj-medium_traj-hard_traj}.pkl'
+        #     pickle_path = os.path.join(extreme_data_dir, pickle_file)
+        #     save_pickle((xs, control_values), pickle_path)
+        #     append_to_dataset_logger(i, masses, lengths, k_values, xs.shape, train_logger)
+
+        elif i >= args.training.train_steps and i < args.training.train_steps + args.training.test_pendulums:
+            masses, lengths = get_valid_masses_and_lengths_uniform()
+            # X0 = generate_random_X0(theta_range=(-np.pi, np.pi), thetadot_range=(-3, 3))
+            # sampler = PendulumSampler(n_dims=2, init_conditions=X0)
+            sampler = PendulumSampler(n_dims=2)
+            # T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, bsize, mass = masses, length = lengths)
+            T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
             pickle_file = f'multipendulum_test_{i-args.training.train_steps}.pkl'
             pickle_path = os.path.join(test_data_dir, pickle_file)
-            save_pickle((xs, control_values), pickle_path)
+            # save_pickle((xs, control_values), pickle_path)
+            save_pickle((xs, control_values, masses, lengths), pickle_path)
             append_to_dataset_logger(i-args.training.train_steps, masses, lengths, k_values, xs.shape, test_logger)
+        else:
+            # masses, lengths = get_valid_masses_and_lengths_uniform(masslowerbound=0.2, massupperbound=0.3, lengthlowerbound=0.6, lengthupperbound=0.85) ## 3/5/2025 out of distribution data
+            masses, lengths = get_valid_masses_and_lengths_uniform(masslowerbound=2.06, massupperbound=3.06, lengthlowerbound=2.2, lengthupperbound=3.2) ## 3/5/2025 out of distribution data
+            # sampler = PendulumSampler(n_dims=2)
+            # X0 = generate_random_X0(theta_range=(-np.pi, np.pi), thetadot_range=(-3, 3))
+            # sampler = PendulumSampler(n_dims=2, init_conditions=X0)
+            sampler = PendulumSampler(n_dims=2)
+            T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
+            pickle_file = f'multipendulum_test_outofdistr_{i-args.training.train_steps-args.training.test_pendulums}.pkl'
+            pickle_path = os.path.join(test_data_dir_outofdistr, pickle_file)
+            # save_pickle((xs, control_values), pickle_path)
+            save_pickle((xs, control_values, masses, lengths), pickle_path)
+            append_to_dataset_logger(i-args.training.train_steps-args.training.test_pendulums, masses, lengths, k_values, xs.shape, test_logger_outofdistr)
 
         # append_to_seed_file(seed_file, i, seed[0] + i, masses, lengths, k_values, xs.shape)
         curriculum.update()

@@ -42,7 +42,7 @@ class PendulumSampler(DataSampler):
         # self.theta_limit = np.pi  
         # self.thetadot_limit = 10.0  
         self.theta_limit = np.pi/4
-        self.thetadot_limit = 3.0 ###### 2/8/2025 (ebonye): changing bounds to make it easier for the model to learn
+        self.thetadot_limit = 6.0 ###### 2/8/2025 (ebonye): changing bounds to make it easier for the model to learn
 
     def sample_val_initial_conditions(self):
         """
@@ -72,7 +72,11 @@ class PendulumSampler(DataSampler):
                 - thetadot_init (float): The initial angular velocity (thetadot), sampled uniformly from [-10, 10].
         """
         # theta_init = np.random.uniform(-self.theta_limit, self.theta_limit)
-        theta_init = np.random.uniform(np.pi/5, np.pi/2) ###### 2/8/2025 (ebonye): changing bounds to make it easier for the model to learn
+        # theta_init = np.random.uniform(np.pi/5, np.pi/2) ###### 2/8/2025 (ebonye): changing bounds to make it easier for the model to learn
+        # theta_init = np.random.uniform(np.pi/5, 7*np.pi/6) ###### 3/5/2025 (ebonye): making more difficult
+        # theta_init = np.random.uniform(np.pi-(np.pi/2), np.pi+(np.pi/2)) ###### 3/9/2025 (ebonye): upswing initial conditions
+        # thetadot_init = np.random.uniform(-self.thetadot_limit, self.thetadot_limit)
+        theta_init = np.random.uniform(np.pi - (3*np.pi/4), np.pi + (3*np.pi/4)) ###### 3/9/2025 (ebonye): upswing initial conditions
         thetadot_init = np.random.uniform(-self.thetadot_limit, self.thetadot_limit)
         return [theta_init, thetadot_init]
 
@@ -137,6 +141,7 @@ class PendulumSampler(DataSampler):
         # ebonye 2/28/2025: removing loop to mix mass/length in a batch right before training       
         X0 = self.sample_initial_conditions() #get starting initial values of theta and thetadot
         T, theta, thetadot, control_values, k_values = checking(X0, n_points, method='rk4', dt=0.01,mass = mass,length = length) # where simulation happens
+        # T, theta, thetadot, control_values, k_values = checking(self.X0, n_points, method='rk4', dt=0.01,mass = mass,length = length)
         T = T[:n_stop]
         theta = theta[:n_stop]
         thetadot = thetadot[:n_stop]

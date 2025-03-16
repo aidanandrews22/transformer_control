@@ -18,24 +18,25 @@ import re
 
 # plot_label = 'multi10_mse_Alternating_diffinitcond_onepend3'
 # phase_plot_label = 'multi10_mse_Alternating_sameinitcond_onepend2_phaseplot'
-plot_label = 'onepend_mse_randinitcond1'
-phase_plot_label = 'onepend_mse_randinitcond1_phaseplot'
-mse_plot_label = 'onepend_mse_randinitcond1_mseplot'
-save_results = "trainsteps100000_test1_randinitcond1_onepend.txt"
-save_phase_plot = "trainsteps125000_test1_randinitcond1_onepend.txt"
-log_info = "trainsteps125000_log1_diff_initcond1_onepend.txt"
+plot_label = 'mse_control'
+phase_plot_label = 'mse_control_phaseplot'
+mse_plot_label = 'mse_control_mseplot'
+save_results = "trainsteps39100_test_mse_control.txt"
+save_phase_plot = "trainsteps39100_test_mse_control.txt"
+log_info = "trainsteps39100_log_mse_control.txt"
 model_name= "test"
-model_run_id= "06a99b9e-ff31-4a4e-a3bf-191df6b0b787"
-model_checkpoint_step= 125000 #70000 #125000 #68000 #40000 #275000 #200 #100000 #80000 #200 #600
+model_run_id= "9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
+model_checkpoint_step= 39100
 model_checkpoint_epoch = 50
-folder_name = f"inference_run/{plot_label}_{model_checkpoint_step}"
+folder_name = f"inference_run/{plot_label}_{model_checkpoint_step}_{model_run_id}"
+mode = 'train' # 'train', 'ood', 'indistr'
 
     
 
 total_time = 5 #1.5
 dt = 0.01
 Num_of_context = 20
-Num_of_pendulums = 20 #40 #10
+Num_of_pendulums = 1 #20 #40 #10
 
 
 
@@ -63,6 +64,22 @@ def mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4):
     xs_pred = torch.tensor(np.column_stack((theta_model, thetadot_model)), dtype=torch.float32)
     xs_true = torch.tensor(np.column_stack((theta_rk4, thetadot_rk4)), dtype=torch.float32)
     return (xs_true - xs_pred).pow(2).mean().item()
+
+def mse_controls(control_values_model, control_values_rk4):
+    """
+    Calculates the Mean Squared Error (MSE) between the predicted and true control values.
+
+    Args:
+        control_values_model (np.ndarray or list): Model's predicted control values
+        control_values_rk4 (np.ndarray or list): True control values using RK4
+
+    Returns:
+        float: The computed MSE value, representing the average squared difference between 
+        the predicted and true control values.
+    """
+    control_pred = torch.tensor(control_values_model, dtype=torch.float32)
+    control_true = torch.tensor(control_values_rk4, dtype=torch.float32)
+    return (control_true - control_pred).pow(2).mean().item()
 
 # def load_model(run_dir, name, run_id, step):
 def load_model(run_dir, name, run_id, step, epoch):
@@ -160,6 +177,9 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
         with torch.no_grad():
             u_pred = model(XData_context, YS_context, inf = "yes")
             u = u_pred[0][-2].cpu().numpy()  
+            # import ipdb; ipdb.set_trace()
+            # print(f"u_pred: {u_pred}")
+            # print(f"u: {u}")
 
         theta, thetadot = workCon.single_step_inverted_pendulum_rk4(
             [XData_context[-1][0].cpu().numpy(), XData_context[-1][1].cpu().numpy()],
@@ -187,7 +207,9 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
   
     theta_model = XData_context[:, 0].cpu().numpy()
     thetadot_model = XData_context[:, 1].cpu().numpy()
-    return T, theta_model, thetadot_model
+    YS_context = YS_context.cpu().numpy()
+    # return T, theta_model, thetadot_model
+    return T, theta_model, thetadot_model #, YS_context
 
 def plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, plot_label):
     """
@@ -513,24 +535,37 @@ def main():
     # lengths = [lengths]
 
     ####################
-    pends = np.random.randint(0, 10000, size=Num_of_pendulums)
+    pends = np.random.randint(0, 5000, size=Num_of_pendulums)
     masses = []
     lengths = []
     X0s = []
     data_and_controls = []
     for multipend_num in pends:
-        pickle_dir = "dataset_pendulum/picklefolder_test"
-        pickle_file = f"multipendulum_test_{multipend_num}.pkl"
+        if mode == 'ood':
+            pickle_dir = f"dataset_pendulum/picklefolder_test_outofdistr"
+            pickle_file = f"multipendulum_test_outofdistr_{multipend_num}.pkl"
+            file_path_mass_length = f"dataset_pendulum/dataset_test_outofdistr_logger.txt"
+        elif mode == 'train':
+            pickle_dir = f"dataset_pendulum/picklefolder"
+            pickle_file = f"multipendulum_{multipend_num}.pkl"
+            file_path_mass_length = f"dataset_pendulum/dataset_logger_train.txt"
+        elif mode == 'indistr':
+            pickle_dir = f"dataset_pendulum/picklefolder_test_indistr"
+            pickle_file = f"multipendulum_test_{multipend_num}.pkl"
+            file_path_mass_length = f"dataset_pendulum/dataset_test_logger.txt"
+        else:
+            raise ValueError(f"Invalid mode: {mode}")
+
+        
         file_path_test_data = os.path.join(pickle_dir, pickle_file)
         with open(file_path_test_data, "rb") as f:
             data = pickle.load(f)
             data_and_controls.append(data)
 
-        file_path_mass_length = "dataset_pendulum/dataset_test_logger.txt"
+       
         masses_temp, lengths_temp, K_values = get_mass_length_Ks_from_text_file(file_path_mass_length, multipend_num)
         masses.append(masses_temp)
         lengths.append(lengths_temp)
-        # X0s.append(generate_random_X0())
         X0s.append(np.squeeze(data[0])[0].cpu().detach().numpy())
 
     X0s_stored = X0s
@@ -539,6 +574,7 @@ def main():
     
     with open(log_info_path, "w") as file:
         mse_results = {context_length: [] for context_length in contexts}
+        mse_control_results = {context_length: [] for context_length in contexts}
         phase_data = {context_length: [] for context_length in contexts}
         counter = 0
         for mass, length in tqdm(zip(masses, lengths), desc="MultiPendulum", total=len(masses), leave=False):
@@ -546,6 +582,7 @@ def main():
             # X0 = [ 1.0852e+00, -1.3760e+00]
             # X0 = [1.4575, 0.1397]
             mse_per_context = []
+            mse_control_per_context = []
             # X0 = np.squeeze(data_controls[0])[0].cpu().detach().numpy()
             # print(f"X0: {X0}")
             # X0 = X0s.pop(0) 
@@ -596,8 +633,11 @@ def main():
 
                 theta_model = theta_model2[context:]
                 thetadot_model = thetadot_model2[context:]
+                control_model = control_values_rk4[context:]
                 mse_loss = mse(theta_model, thetadot_model, theta_rk4_temp, thetadot_rk4_temp)
                 mse_per_context.append(mse_loss)
+
+                
 
 
             for idx, context_length in enumerate(contexts):
@@ -672,7 +712,7 @@ try:
     # print(np.array(thetadot_models).shape)
 
     # save_results = os.join(folder_name, "results.pkl")
-    save_results = os.path.join(folder_name, f"results_maxcontext{Num_of_context}_numpends{Num_of_pendulums}.pkl")
+    save_results = os.path.join(folder_name, f"results_maxcontext{Num_of_context}_numpends{Num_of_pendulums}_{mode}.pkl")
 
     with open(save_results, "wb") as f:
         pickle.dump(results, f)

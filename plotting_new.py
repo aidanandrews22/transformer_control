@@ -94,10 +94,10 @@ def dynamic_mode_decomposition(XData, X0, total_time, dt, context):
         # b = np.linalg.pinv(Phi) @ X[:, 0]
         b = np.linalg.pinv(Phi) @ X0
 
-        print(f'Eigvals: {eigvals}')
+        # print(f'Eigvals: {eigvals}')
         Omega = np.log(eigvals) / dt
         # Omega = np.clip(Omega, -200, 10)
-        print(f'Omega: {Omega}')
+        # print(f'Omega: {Omega}')
         # omega = np.log(eigvals) / dt
         # Phi = np.linalg.multi_dot([XData[1:context-1].T, V, np.linalg.inv(np.diag(S)), U.T, eigvecs])
         # b = np.linalg.lstsq(Phi, XData[1:context-1].T @ A.T)[0]
@@ -119,9 +119,11 @@ def load_data(data_path):
         data = pickle.load(f)
     return data
 
-
-data_path = f'inference_run/onepend_mse_randinitcond1_125000/results_maxcontext20_numpends20.pkl'
+model_run_id = "9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
+data_path = f'inference_run/mse_control_39100_{model_run_id}/results_maxcontext20_numpends1_indistr.pkl'
 X0s_stored, masses, lengths, phase_data, data_and_controls, pends = load_data(data_path)
+# print(f'masses: {masses}')
+# print(f'lengths: {lengths}')
 '''
 X0s_stored: list of initial conditions for each pendulum
 masses: list of masses for each pendulum
@@ -134,7 +136,7 @@ pends: pendulum indices for pickle files
 ##### Plotting Phase Space
 total_time = 5
 dt = 0.01
-pendulum_index = 19
+pendulum_index = 0
 
 
 T = np.arange(0, total_time, dt)
@@ -166,12 +168,12 @@ for context in phase_data.keys():
     fig.add_trace(go.Scatter(x=phase_data[context][pendulum_index][:,0], y=phase_data[context][pendulum_index][:,1], mode='markers', name=f'Context: {context}'))
     if context != 1:
         theta_dmd, thetadot_dmd = dynamic_mode_decomposition(phase_data[context][pendulum_index], X0s_stored[pendulum_index], total_time, dt, context)
-        fig.add_trace(go.Scatter(x=theta_dmd, y=thetadot_dmd, mode='markers', name=f'DMD: Context {context}'))
+        # fig.add_trace(go.Scatter(x=theta_dmd, y=thetadot_dmd, mode='markers', name=f'DMD: Context {context}'))
 
 fig.update_layout(title='Phase Space', xaxis_title='Theta', yaxis_title='Theta_dot')
 # fig.write_image('multipendulum_phaseplot_plotly.png')
 # fig.write_html('multipendulum_phaseplot_plotly.html')
-# fig.show()
+fig.show()
 
 ###################################################################################################3
 ##### plotting mse vs context length + error bars for all pendulums
@@ -189,11 +191,11 @@ for pendulum_index in range(len(pends)):
         thetadot_model = phase_data[context][pendulum_index][:,1]
         mse_val = mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4)
         mse_values[context].append(mse_val)
-        if context != 1:
-            print(f'Pendulum: {pendulum_index}, Context: {context}')
-            theta_dmd, thetadot_dmd = dynamic_mode_decomposition(phase_data[context][pendulum_index], X0s_stored[pendulum_index], total_time, dt, context)
-            mse_val_dmd = mse(theta_dmd, thetadot_dmd, theta_rk4, thetadot_rk4)
-            mse_values_dmd[context].append(mse_val_dmd)
+        # if context != 1:
+            # print(f'Pendulum: {pendulum_index}, Context: {context}')
+            # theta_dmd, thetadot_dmd = dynamic_mode_decomposition(phase_data[context][pendulum_index], X0s_stored[pendulum_index], total_time, dt, context)
+            # mse_val_dmd = mse(theta_dmd, thetadot_dmd, theta_rk4, thetadot_rk4)
+            # mse_values_dmd[context].append(mse_val_dmd)
 
 mean_mse_values = {context: np.mean(mse_values[context]) for context in mse_values.keys()}
 std_mse_values = {context: np.std(mse_values[context]) for context in mse_values.keys()}
@@ -224,7 +226,7 @@ plt.grid()
 plt.yscale('log')
 # plt.ylim(1e-8, 1e-1)
 plt.grid()
-plt.xticks(list(mean_mse_values.keys()))
+plt.xticks(list(mean_mse_values.keys())[::4])
 plt.xlabel('Context Length')
 plt.ylabel('MSE')
 plt.title('MSE vs Context Length')
@@ -233,30 +235,61 @@ plt.show()
 
 #############################################################################################
 ##### Plotting Checkpoint versus MSE
-mse_results = load_data('mse_results.pkl')
+# all_results = load_data('all_results_5pend_indistr_3c33d621-e18a-4c4b-9844-54915b1de7b1.pkl')
+# all_results = load_data('all_results_5pend_ood_3c33d621-e18a-4c4b-9844-54915b1de7b1.pkl')
+# all_results = load_data('all_results_5pend_indistr_9bb50653-5ed4-49c1-8dae-a876b2677236.pkl')
+all_results = load_data('all_results_5pend_ood_9bb50653-5ed4-49c1-8dae-a876b2677236.pkl')
+mse_results = all_results['mse_results']
+mse_controls_results = all_results['mse_controls_results']
 checkpoints = list(mse_results.keys())
 mse_values = list(mse_results.values())
+mse_controls_values = list(mse_controls_results.values())
 median_mse_values = {step: np.median(mse_values) for step, mse_values in mse_results.items()}
 min_mse_values = {step: np.min(mse_values) for step, mse_values in mse_results.items()}
 max_mse_values = {step: np.max(mse_values) for step, mse_values in mse_results.items()}
+
+median_mse_controls_values = {step: np.median(mse_values) for step, mse_values in mse_controls_results.items()}
+min_mse_controls_values = {step: np.min(mse_values) for step, mse_values in mse_controls_results.items()}
+max_mse_controls_values = {step: np.max(mse_values) for step, mse_values in mse_controls_results.items()}
 plt.figure(figsize=(15, 6))
 # plt.plot(checkpoints, mse_values, marker='o', color='black')
-plt.plot(checkpoints, list(median_mse_values.values()), marker='o', color='black')
-plt.fill_between(checkpoints, list(min_mse_values.values()), list(max_mse_values.values()), color='gray', alpha=0.5)
-# plt.yscale('log')
+plt.plot(checkpoints, list(median_mse_values.values()), marker='o', color='black', label='MSE state')
+# plt.fill_between(checkpoints, list(min_mse_values.values()), list(max_mse_values.values()), color='gray', alpha=0.5)
+# plt.plot(checkpoints, list(median_mse_controls_values.values()), marker='o', color='red', label='MSE control')
+# plt.fill_between(checkpoints, list(min_mse_controls_values.values()), list(max_mse_controls_values.values()), color='pink', alpha=0.5)
+plt.legend()
+plt.yscale('log')
 plt.xlabel('Checkpoint')
 plt.ylabel('MSE (log)')
-plt.xticks(np.arange(0, checkpoints[-1], 10000))
+# plt.xticks(np.arange(0, checkpoints[-1], 10000))
 plt.title('MSE vs Checkpoint')
 plt.savefig('mse_vs_checkpoint.png', bbox_inches='tight', dpi=300)
 plt.show()
+# print(checkpoints)
+# print(np.min(list(median_mse_values.values())))
 
-
-#############################################################################################
-# pends2 = np.arange(0, 20)
+###################################################################################################
+##### Plotting Training Points
+pends = np.arange(0, 50)
+# plt.figure(figsize=(10, 6))
 # for i in range(len(pends)):
-#     datapath2 = f'dataset_pendulum/picklefolder/multipendulum_pends[i].pkl'
-#     data2 = load_data(datapath2)
+#     print(f'Pendulum: {i}')
+#     datapath = f'dataset_pendulum/picklefolder/multipendulum_{i}.pkl'
+#     data_controls = load_data(datapath)
+#     theta_rk4 = (np.squeeze(data_controls[0]).cpu().detach().numpy())[:, 0]
+#     thetadot_rk4 = (np.squeeze(data_controls[0]).cpu().detach().numpy())[:, 1]
+#     control_values_rk4 = (np.squeeze(data_controls[1]).cpu().detach().numpy())
+#     plt.plot(theta_rk4, thetadot_rk4, label=f'Pendulum: {i}', marker = 'o')
+
+# plt.xlabel('Theta')
+# plt.ylabel('Theta_dot')
+# plt.title('Training Points')
+# plt.legend(loc="upper left", bbox_to_anchor=(1,1))
+# plt.savefig('multipendulum_trainingpoints.png', bbox_inches='tight', dpi=300)
+# # plt.show()
+
+            
+
 
 
 

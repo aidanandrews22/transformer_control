@@ -206,11 +206,13 @@ def train_step(model, xs, ys, optimizer, loss_func, i, args, mass, length, b=0.5
     optimizer.zero_grad()
     output = model(xs, ys)
     loss = loss_func(output, ys)
+    lambda_coeff2 = 1e-4
+    smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
     # lyapunov_loss_value = lyapunov_loss(xs, output)
     # lyapunov_loss_value = lyapunov_loss(xs, ys, mass, length, b, g)
     # lyapunov_loss_value = lyapunov_loss(xs, output, mass, length, b, g)
 
-    total_loss = loss #+ lyapunov_loss_value
+    total_loss = loss + smoothness_loss
     # total_loss = lyapunov_loss_value
     total_loss = total_loss.to(xs.device).requires_grad_(True)
 
@@ -222,7 +224,7 @@ def train_step(model, xs, ys, optimizer, loss_func, i, args, mass, length, b=0.5
         log_training_info(file_path, i, args, xs, ys, output, total_loss)
 
     total_loss.backward()
-    # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=2.0)
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
     grad_norm = sum(p.grad.detach().data.norm(2).item() ** 2 for p in model.parameters() if p.grad is not None) ** 0.5
 
     optimizer.step()
@@ -619,6 +621,7 @@ def evaluate_model(model, id_data, ood_data, loss_func):
 
     id_loss = 0.0
     ood_loss = 0.0
+    lambda_coeff2 = 1e-4
 
     id_loader = DataLoader(id_data, batch_size=64, shuffle=True)
     # for xs, ys in id_loader:
@@ -637,6 +640,9 @@ def evaluate_model(model, id_data, ood_data, loss_func):
 
 
             loss = loss_func(output, ys)
+            smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
+            loss = loss + smoothness_loss
+        
             # loss = lyapunov_loss(xs, ys, masses, lengths)
             id_loss += loss.item()
     id_loss /= len(id_loader)
@@ -651,6 +657,8 @@ def evaluate_model(model, id_data, ood_data, loss_func):
             ys = ys.cuda(3)
             output = model(xs, ys)
             loss = loss_func(output, ys)
+            smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
+            loss = loss + smoothness_loss
             # loss = lyapunov_loss(xs, ys, masses, lengths)
             ood_loss += loss.item()
     ood_loss /= len(ood_loader)
@@ -1111,7 +1119,7 @@ def main(args):
         )
 
     model = build_model(args.model)
-    device_ids = [3, 0]
+    device_ids = [3, 2]
     model = torch.nn.DataParallel(model, device_ids=device_ids)
     model = model.to('cuda:3')
     # model.cuda()

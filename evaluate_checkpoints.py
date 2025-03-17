@@ -258,9 +258,9 @@ def get_checkpoints_from_folder(run_dir, name, run_id):
     return sorted_files, epochs, steps
 
 model_name= "test"
-model_run_id= "9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
-mode = "indistr" # "indistr" or "ood"
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+model_run_id= "38bf57f0-0a4a-48ed-a423-ea4a38971179"
+mode = "ood" # "indistr" or "ood"
+device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
 # model_checkpoint_step= 400 #125000
 # model_checkpoint_epoch = 1 #50
 phase = 1
@@ -312,8 +312,11 @@ for epoch, step, file in zip(epochs, steps, files):
 #         # continue
 
 # import pdb; pdb.set_trace()
+num_pends = 10
+# pends = np.random.choice(np.arange(0, 5, 1), 5, replace=False)
+pends = np.random.choice(np.arange(0, 5000, 1), num_pends, replace=False)
 
-pends = np.random.choice(np.arange(0, 5, 1), 5, replace=False)
+
 masses = []
 lengths = []
 X0s = []

@@ -119,9 +119,9 @@ def load_data(data_path):
         data = pickle.load(f)
     return data
 
-model_run_id = "9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
-data_path = f'inference_run/mse_control_39100_{model_run_id}/results_maxcontext20_numpends1_indistr.pkl'
-X0s_stored, masses, lengths, phase_data, data_and_controls, pends = load_data(data_path)
+model_run_id = "38bf57f0-0a4a-48ed-a423-ea4a38971179" #"9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
+data_path = f'inference_run/mse_control_97750_{model_run_id}/results_maxcontext20_numpends1_ood.pkl'
+X0s_stored, masses, lengths, phase_data, controls_data, data_and_controls, pends = load_data(data_path)
 # print(f'masses: {masses}')
 # print(f'lengths: {lengths}')
 '''
@@ -143,6 +143,8 @@ T = np.arange(0, total_time, dt)
 ground_truth_data_controls = data_and_controls[pendulum_index]
 theta_rk4 = (np.squeeze(ground_truth_data_controls[0]).cpu().detach().numpy())[:, 0]
 thetadot_rk4 = (np.squeeze(ground_truth_data_controls[0]).cpu().detach().numpy())[:, 1]
+control_values_rk4 = (np.squeeze(ground_truth_data_controls[1]).cpu().detach().numpy())
+
 
 
 plt.figure(figsize=(10, 6))
@@ -152,8 +154,10 @@ for context in phase_data.keys():
     plt.plot(phase_data[context][pendulum_index][:,0], phase_data[context][pendulum_index][:,1], label=f'Context: {context}', marker = 'o')
     # theta_dmd, thetadot_dmd = dynamic_mode_decomposition(phase_data[context][pendulum_index], X0s_stored[pendulum_index], total_time, dt, context)
     # plt.plot(theta_dmd, thetadot_dmd, label=f'DMD: Context {context}', marker = 'o')
-
-
+    if context == 6:
+        print(controls_data[context][pendulum_index])
+        print("------------------------------------------------")
+        print(control_values_rk4)
 
 plt.xlabel('Theta')
 plt.ylabel('Theta_dot')
@@ -173,7 +177,7 @@ for context in phase_data.keys():
 fig.update_layout(title='Phase Space', xaxis_title='Theta', yaxis_title='Theta_dot')
 # fig.write_image('multipendulum_phaseplot_plotly.png')
 # fig.write_html('multipendulum_phaseplot_plotly.html')
-fig.show()
+# fig.show()
 
 ###################################################################################################3
 ##### plotting mse vs context length + error bars for all pendulums
@@ -231,14 +235,15 @@ plt.xlabel('Context Length')
 plt.ylabel('MSE')
 plt.title('MSE vs Context Length')
 plt.savefig('multipendulum_mse_vs_context.png', bbox_inches='tight', dpi=300)
-plt.show()
+# plt.show()
 
 #############################################################################################
 ##### Plotting Checkpoint versus MSE
 # all_results = load_data('all_results_5pend_indistr_3c33d621-e18a-4c4b-9844-54915b1de7b1.pkl')
 # all_results = load_data('all_results_5pend_ood_3c33d621-e18a-4c4b-9844-54915b1de7b1.pkl')
-# all_results = load_data('all_results_5pend_indistr_9bb50653-5ed4-49c1-8dae-a876b2677236.pkl')
-all_results = load_data('all_results_5pend_ood_9bb50653-5ed4-49c1-8dae-a876b2677236.pkl')
+all_results = load_data('all_results_5pend_indistr_9bb50653-5ed4-49c1-8dae-a876b2677236.pkl')
+# all_results = load_data('all_results_5pend_ood_9bb50653-5ed4-49c1-8dae-a876b2677236.pkl')
+# all_results = load_data('all_results_5pend_ood_38bf57f0-0a4a-48ed-a423-ea4a38971179.pkl')
 mse_results = all_results['mse_results']
 mse_controls_results = all_results['mse_controls_results']
 checkpoints = list(mse_results.keys())
@@ -253,9 +258,9 @@ min_mse_controls_values = {step: np.min(mse_values) for step, mse_values in mse_
 max_mse_controls_values = {step: np.max(mse_values) for step, mse_values in mse_controls_results.items()}
 plt.figure(figsize=(15, 6))
 # plt.plot(checkpoints, mse_values, marker='o', color='black')
-plt.plot(checkpoints, list(median_mse_values.values()), marker='o', color='black', label='MSE state')
+# plt.plot(checkpoints, list(median_mse_values.values()), marker='o', color='black', label='MSE state')
 # plt.fill_between(checkpoints, list(min_mse_values.values()), list(max_mse_values.values()), color='gray', alpha=0.5)
-# plt.plot(checkpoints, list(median_mse_controls_values.values()), marker='o', color='red', label='MSE control')
+plt.plot(checkpoints, list(median_mse_controls_values.values()), marker='o', color='red', label='MSE control')
 # plt.fill_between(checkpoints, list(min_mse_controls_values.values()), list(max_mse_controls_values.values()), color='pink', alpha=0.5)
 plt.legend()
 plt.yscale('log')

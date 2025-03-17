@@ -21,15 +21,15 @@ import re
 plot_label = 'mse_control'
 phase_plot_label = 'mse_control_phaseplot'
 mse_plot_label = 'mse_control_mseplot'
-save_results = "trainsteps39100_test_mse_control.txt"
-save_phase_plot = "trainsteps39100_test_mse_control.txt"
-log_info = "trainsteps39100_log_mse_control.txt"
+save_results = "trainsteps_test_mse_control.txt"
+save_phase_plot = "trainsteps_test_mse_control.txt"
+log_info = "trainsteps_log_mse_control.txt"
 model_name= "test"
-model_run_id= "9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
-model_checkpoint_step= 39100
-model_checkpoint_epoch = 50
+model_run_id= "38bf57f0-0a4a-48ed-a423-ea4a38971179" #"9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
+model_checkpoint_step= 97750
+model_checkpoint_epoch = 125
 folder_name = f"inference_run/{plot_label}_{model_checkpoint_step}_{model_run_id}"
-mode = 'train' # 'train', 'ood', 'indistr'
+mode = 'ood' # 'train', 'ood', 'indistr'
 
     
 
@@ -47,7 +47,7 @@ torch.manual_seed(1000)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(1000)
 
-def mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4):
+def mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4, device):
     """
     Calculates the Mean Squared Error (MSE) between the predicted and true states.
 
@@ -61,11 +61,11 @@ def mse(theta_model, thetadot_model, theta_rk4, thetadot_rk4):
         float: The computed MSE value, representing the average squared difference between 
         the predicted and true states.
     """
-    xs_pred = torch.tensor(np.column_stack((theta_model, thetadot_model)), dtype=torch.float32)
-    xs_true = torch.tensor(np.column_stack((theta_rk4, thetadot_rk4)), dtype=torch.float32)
+    xs_pred = torch.tensor(np.column_stack((theta_model, thetadot_model)), dtype=torch.float32, device=device)
+    xs_true = torch.tensor(np.column_stack((theta_rk4, thetadot_rk4)), dtype=torch.float32, device=device)
     return (xs_true - xs_pred).pow(2).mean().item()
 
-def mse_controls(control_values_model, control_values_rk4):
+def mse_controls(control_values_model, control_values_rk4, device):
     """
     Calculates the Mean Squared Error (MSE) between the predicted and true control values.
 
@@ -77,8 +77,8 @@ def mse_controls(control_values_model, control_values_rk4):
         float: The computed MSE value, representing the average squared difference between 
         the predicted and true control values.
     """
-    control_pred = torch.tensor(control_values_model, dtype=torch.float32)
-    control_true = torch.tensor(control_values_rk4, dtype=torch.float32)
+    control_pred = torch.tensor(control_values_model, dtype=torch.float32, device=device)
+    control_true = torch.tensor(control_values_rk4, dtype=torch.float32, device=device)
     return (control_true - control_pred).pow(2).mean().item()
 
 # def load_model(run_dir, name, run_id, step):
@@ -135,7 +135,7 @@ def generate_random_X0():
     return [theta, thetadot]
 
 
-def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, start_index=1, mass = 1, length = 1):
+def run_inference_on_model(model, XData, YS, total_time, device, dt=0.01, context=1, start_index=1, mass = 1, length = 1):
     """
     Runs inference on a trained model to simulate the dynamics of a pendulum system over time, given an initial state and context data.
 
@@ -155,12 +155,13 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
             - T (np.ndarray): Array of time steps during the simulation.
             - theta_model (np.ndarray): Array of predicted theta over time.
             - thetadot_model (np.ndarray): Array of predicted thetadot over time.
+            - YS_context (np.ndarray): Array of control inputs over time.
 
     Raises:
         AssertionError: If `start_index` is less than `context`.
     """
     assert start_index >= context, "start_index must be at least equal to context"
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
   
     T = np.arange(0, total_time, dt)
@@ -209,7 +210,7 @@ def run_inference_on_model(model, XData, YS, total_time, dt=0.01, context=1, sta
     thetadot_model = XData_context[:, 1].cpu().numpy()
     YS_context = YS_context.cpu().numpy()
     # return T, theta_model, thetadot_model
-    return T, theta_model, thetadot_model #, YS_context
+    return T, theta_model, thetadot_model, YS_context
 
 def plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, plot_label):
     """
@@ -535,7 +536,9 @@ def main():
     # lengths = [lengths]
 
     ####################
+    device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
     pends = np.random.randint(0, 5000, size=Num_of_pendulums)
+    # pends = [1050] 
     masses = []
     lengths = []
     X0s = []
@@ -576,6 +579,7 @@ def main():
         mse_results = {context_length: [] for context_length in contexts}
         mse_control_results = {context_length: [] for context_length in contexts}
         phase_data = {context_length: [] for context_length in contexts}
+        controls_data = {context_length: [] for context_length in contexts}
         counter = 0
         for mass, length in tqdm(zip(masses, lengths), desc="MultiPendulum", total=len(masses), leave=False):
             # X0 = generate_random_X0()
@@ -621,27 +625,37 @@ def main():
 
                 theta_rk4_temp = theta_rk4[context:]
                 thetadot_rk4_temp = thetadot_rk4[context:]
+                controls_rk4_temp = control_values_rk4[context:]
 
-                T_model, theta_model2, thetadot_model2 = run_inference_on_model(
-                    model, xs_dataset, control_values_rk4, total_time, dt, context=context, start_index=context, mass = mass, length = length
+                T_model, theta_model2, thetadot_model2, controls_model2 = run_inference_on_model(
+                    model, xs_dataset, control_values_rk4, total_time, device, dt, context=context, start_index=context, mass = mass, length = length
                 )
+
+                
                 # store_theta_model.append(theta_model2)
                 # store_thetadot_model.append(thetadot_model2)
 
                 trajectory = np.stack([theta_model2, thetadot_model2], axis=1)
+                controls_for_trajectory = controls_model2
                 phase_data[context].append(trajectory)
+                controls_data[context].append(controls_for_trajectory)
 
                 theta_model = theta_model2[context:]
                 thetadot_model = thetadot_model2[context:]
-                control_model = control_values_rk4[context:]
-                mse_loss = mse(theta_model, thetadot_model, theta_rk4_temp, thetadot_rk4_temp)
+                controls_model = controls_model2[context-1:]
+                # control_model = control_values_rk4[context:]
+                mse_loss = mse(theta_model, thetadot_model, theta_rk4_temp, thetadot_rk4_temp, device)
                 mse_per_context.append(mse_loss)
+
+                mse_control_loss = mse_controls(controls_model, controls_rk4_temp, device)
+                mse_control_per_context.append(mse_control_loss)
 
                 
 
 
             for idx, context_length in enumerate(contexts):
                 mse_results[context_length].append(mse_per_context[idx])
+                mse_control_results[context_length].append(mse_control_per_context[idx])
             counter += 1
             
         mse_mean = {context_length: np.mean(mse_results[context_length]) for context_length in contexts}
@@ -704,7 +718,7 @@ def main():
     # plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, phase_plot_label)
 
     # return X0, masses, lengths, store_theta_model, store_thetadot_model
-    return X0s_stored, masses, lengths, phase_data, data_and_controls, pends
+    return X0s_stored, masses, lengths, phase_data, controls_data, data_and_controls, pends
 
 try:
     results = main()

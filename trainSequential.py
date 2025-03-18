@@ -204,15 +204,50 @@ def train_step(model, xs, ys, optimizer, loss_func, i, args, mass, length, b=0.5
             - output (torch.Tensor): The model's predicted outputs for the input data (don't really use this for anything).
     """
     optimizer.zero_grad()
+    context = np.random.randint(0, (xs.size(1)//4))
     output = model(xs, ys)
-    loss = loss_func(output, ys)
-    lambda_coeff2 = 1e-4
-    smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
-    # lyapunov_loss_value = lyapunov_loss(xs, output)
-    # lyapunov_loss_value = lyapunov_loss(xs, ys, mass, length, b, g)
+    # loss = loss_func(output[:, context:], ys[:, context:])
+    alpha = 0.2
+    weights = 1 + alpha * torch.abs(ys[:, context:])
+    loss = torch.mean(weights * (output[:, context:] - ys[:, context:])**2)
+    # import pdb; pdb.set_trace()
+    # loss = loss_func(output, ys)
+    # lambda_coeff2 = 1e-4
+    # smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
     # lyapunov_loss_value = lyapunov_loss(xs, output, mass, length, b, g)
 
-    total_loss = loss + smoothness_loss
+    # ###### ebonye 3/17/2025
+    # optimizer.zero_grad()
+    # # context = np.random.randint(0, (xs.size(1)//4))
+    # context = torch.randint(low = 2, high = (xs.size(1)//4), size=(1,)).item()
+    # # xs_context = xs[:, :context, :]
+    # ys_context = ys[:, :context]
+    # # ys_true_after_context = ys[:, context:]
+    # # pred_controls = torch.zeros(xs.size(0), xs.size(1)-context, 1)
+    # loss = 0.0
+    # # pred_controls = torch.zeros_like(ys[:, context:])
+    # for j in range(context, xs.size(1)):
+    #     # output = model(xs_context, ys_context)[:, -1]
+    #     output = model(xs[:, :j, :], ys_context)[..., -1]
+    #     # u_pred = output[:, -1]
+    #     # x_pred = rk4_step_combined(xs_context[:, -1], u_pred, mass, length, dt=0.01, b=b, g=g)
+    #     # x_pred = xs[:, j, :]
+    #     loss += loss_func(output, ys[:, j])
+
+    #     # xs_context = torch.cat([xs_context, x_pred.unsqueeze(1)], dim=1)
+    #     ys_context = torch.cat([ys_context, output.unsqueeze(1)], dim=1)
+    #     output = output.detach()
+    #     del output
+    #     # pred_controls[:, j-context] = u_pred
+
+    # # loss = loss_func(pred_controls, ys_true_after_context)
+    # del ys_context
+
+    # loss = loss / (xs.size(1) - context)
+    #############################
+
+
+    total_loss = loss #+ smoothness_loss
     # total_loss = lyapunov_loss_value
     total_loss = total_loss.to(xs.device).requires_grad_(True)
 
@@ -635,13 +670,14 @@ def evaluate_model(model, id_data, ood_data, loss_func):
             # print(f"ys: {ys.size()}")
             xs = xs.cuda(3)
             ys = ys.cuda(3)
+            context = torch.randint(low = 2, high = (xs.size(1)//4), size=(1,)).item()
 
             output = model(xs, ys)
 
-
-            loss = loss_func(output, ys)
-            smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
-            loss = loss + smoothness_loss
+            loss = loss_func(output[:, context:], ys[:, context:])
+            # loss = loss_func(output, ys)
+            # # smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
+            # # loss = loss + smoothness_loss
         
             # loss = lyapunov_loss(xs, ys, masses, lengths)
             id_loss += loss.item()
@@ -655,10 +691,12 @@ def evaluate_model(model, id_data, ood_data, loss_func):
             ys = torch.squeeze(ys)
             xs = xs.cuda(3)
             ys = ys.cuda(3)
+            context = torch.randint(low = 2, high = (xs.size(1)//4), size=(1,)).item()
             output = model(xs, ys)
-            loss = loss_func(output, ys)
-            smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
-            loss = loss + smoothness_loss
+            loss = loss_func(output[:, context:], ys[:, context:])
+            # loss = loss_func(output, ys)
+            # # smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
+            # # loss = loss + smoothness_loss
             # loss = lyapunov_loss(xs, ys, masses, lengths)
             ood_loss += loss.item()
     ood_loss /= len(ood_loader)

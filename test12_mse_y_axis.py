@@ -25,9 +25,9 @@ save_results = "trainsteps_test_mse_control.txt"
 save_phase_plot = "trainsteps_test_mse_control.txt"
 log_info = "trainsteps_log_mse_control.txt"
 model_name= "test"
-model_run_id= "38bf57f0-0a4a-48ed-a423-ea4a38971179" #"9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
-model_checkpoint_step= 97750
-model_checkpoint_epoch = 125
+model_run_id= "11cdf7d5-d01d-4333-85ae-bf5a7465af9e" #"38bf57f0-0a4a-48ed-a423-ea4a38971179" #"9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
+model_checkpoint_step= 48000 #97750
+model_checkpoint_epoch = 62 #125
 folder_name = f"inference_run/{plot_label}_{model_checkpoint_step}_{model_run_id}"
 mode = 'ood' # 'train', 'ood', 'indistr'
 
@@ -35,7 +35,7 @@ mode = 'ood' # 'train', 'ood', 'indistr'
 
 total_time = 5 #1.5
 dt = 0.01
-Num_of_context = 20
+Num_of_context = 50
 Num_of_pendulums = 1 #20 #40 #10
 
 
@@ -536,7 +536,7 @@ def main():
     # lengths = [lengths]
 
     ####################
-    device = torch.device("cuda:3" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
     pends = np.random.randint(0, 5000, size=Num_of_pendulums)
     # pends = [1050] 
     masses = []

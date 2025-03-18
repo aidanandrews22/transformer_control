@@ -59,7 +59,8 @@ def get_valid_masses_and_lengths( dt=0.01, mean=3, variance=1, lowerbound=1, upp
         # seed[0] += 1
         # reseed_all(seed[0])
 
-def get_valid_masses_and_lengths_uniform( dt=0.01, masslowerbound=0.06, massupperbound=0.17, lengthlowerbound=0.2, lengthupperbound=0.55):
+# def get_valid_masses_and_lengths_uniform( dt=0.01, masslowerbound=0.06, massupperbound=0.17, lengthlowerbound=0.2, lengthupperbound=0.55):
+def get_valid_masses_and_lengths_uniform( dt=0.01, masslowerbound=0.06, massupperbound=2.06, lengthlowerbound=0.2, lengthupperbound=2.2): #### 2/24/2025 (ebonye) make wider range
     """
     Samples valid masses and lengths for a pendulum system that meet specific constraints, using a uniform distribution.
 
@@ -385,7 +386,7 @@ def make_train_data(args):
             append_to_dataset_logger(i-args.training.train_steps, masses, lengths, k_values, xs.shape, test_logger)
         else:
             # masses, lengths = get_valid_masses_and_lengths_uniform(masslowerbound=0.2, massupperbound=0.3, lengthlowerbound=0.6, lengthupperbound=0.85) ## 3/5/2025 out of distribution data
-            masses, lengths = get_valid_masses_and_lengths_uniform(masslowerbound=2.06, massupperbound=3.06, lengthlowerbound=2.2, lengthupperbound=3.2) ## 3/5/2025 out of distribution data
+            masses, lengths = get_valid_masses_and_lengths_uniform(masslowerbound=2.07, massupperbound=3.07, lengthlowerbound=2.3, lengthupperbound=3.3) ## 3/5/2025 out of distribution data
             # sampler = PendulumSampler(n_dims=2)
             # X0 = generate_random_X0(theta_range=(-np.pi, np.pi), thetadot_range=(-3, 3))
             # sampler = PendulumSampler(n_dims=2, init_conditions=X0)

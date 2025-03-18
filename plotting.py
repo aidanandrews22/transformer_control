@@ -188,14 +188,14 @@ start_index = 5
 data_path = f'inference_run/onepend_mse_sameinitcond6_125000/results_maxcontext{start_index}.pkl'
 
 
-X0, masses, lengths, theta_result_model, thetadot_result_model = load_data(data_path) ## one pend test model
+# X0, masses, lengths, theta_result_model, thetadot_result_model = load_data(data_path) ## one pend test model
 # masses, lengths, theta_result_model, thetadot_result_model = load_data(data_path) ## one pend test model
 
 # masses = [generate_dataset.sample_mass_uniform() for _ in range(Num_of_pendulums)] ## multipend no test model
 # lengths = [generate_dataset.sample_length_uniform() for _ in range(Num_of_pendulums)] ## multipend no test model
 
-theta_model_context = theta_result_model[context-1]  ## one pend test model
-thetadot_model_context = thetadot_result_model[context-1] ## one pend test model
+# theta_model_context = theta_result_model[context-1]  ## one pend test model
+# thetadot_model_context = thetadot_result_model[context-1] ## one pend test model
 
 
 thetas_rk4 = np.zeros((Num_of_pendulums, steps + 1))
@@ -204,6 +204,10 @@ thetas_dmd = np.zeros((Num_of_pendulums, steps + 1))
 thetadots_dmd = np.zeros((Num_of_pendulums, steps + 1))
 
 i = 0
+X0 = [np.pi, 3]
+masses = [2.2]
+lengths = [1.5]
+
 
 
 for mass, length in tqdm(zip(masses, lengths), desc="MultiPendulum", total=len(masses), leave=False):

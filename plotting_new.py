@@ -119,8 +119,8 @@ def load_data(data_path):
         data = pickle.load(f)
     return data
 
-model_run_id = "38bf57f0-0a4a-48ed-a423-ea4a38971179" #"9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
-data_path = f'inference_run/mse_control_97750_{model_run_id}/results_maxcontext20_numpends1_ood.pkl'
+model_run_id = "11cdf7d5-d01d-4333-85ae-bf5a7465af9e"#"38bf57f0-0a4a-48ed-a423-ea4a38971179" #"9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
+data_path = f'inference_run/mse_control_48000_{model_run_id}/results_maxcontext50_numpends1_indistr.pkl'
 X0s_stored, masses, lengths, phase_data, controls_data, data_and_controls, pends = load_data(data_path)
 # print(f'masses: {masses}')
 # print(f'lengths: {lengths}')
@@ -154,9 +154,9 @@ for context in phase_data.keys():
     plt.plot(phase_data[context][pendulum_index][:,0], phase_data[context][pendulum_index][:,1], label=f'Context: {context}', marker = 'o')
     # theta_dmd, thetadot_dmd = dynamic_mode_decomposition(phase_data[context][pendulum_index], X0s_stored[pendulum_index], total_time, dt, context)
     # plt.plot(theta_dmd, thetadot_dmd, label=f'DMD: Context {context}', marker = 'o')
-    if context == 6:
+    if context == 40:
         print(controls_data[context][pendulum_index])
-        print("------------------------------------------------")
+        print("------------------------------------------------------------------")
         print(control_values_rk4)
 
 plt.xlabel('Theta')

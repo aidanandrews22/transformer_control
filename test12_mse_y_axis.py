@@ -25,18 +25,18 @@ save_results = "trainsteps_test_mse_control.txt"
 save_phase_plot = "trainsteps_test_mse_control.txt"
 log_info = "trainsteps_log_mse_control.txt"
 model_name= "test"
-model_run_id= "11cdf7d5-d01d-4333-85ae-bf5a7465af9e" #"38bf57f0-0a4a-48ed-a423-ea4a38971179" #"9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
-model_checkpoint_step= 48000 #97750
-model_checkpoint_epoch = 62 #125
+model_run_id= "0e78febc-150a-4490-bce8-b6d6d610dc94" #"b18ed057-5e72-472c-a6d8-8da441b57179" #"b30ed57a-7d3e-4be2-8534-57de7bc1508a" #"3712d4a7-2ea1-45db-ba05-4d993e7243ba" #"1376e11b-fa4d-4115-be63-4247b95c4cc0" #"5bb6fb12-1ea0-48d3-b408-998d2e32ca92" #"2289ff4f-8985-4b0a-a68f-fb4bec60a03f" #"11cdf7d5-d01d-4333-85ae-bf5a7465af9e" #"38bf57f0-0a4a-48ed-a423-ea4a38971179" #"9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
+model_checkpoint_step= 39075 #18400 #46000 #97750 #10800 #29600 #46400 #97750
+model_checkpoint_epoch = 25 #59 #125 #14 #38 #60 #125
 folder_name = f"inference_run/{plot_label}_{model_checkpoint_step}_{model_run_id}"
 mode = 'ood' # 'train', 'ood', 'indistr'
 
     
 
-total_time = 5 #1.5
+total_time = 3 #5 #1.5
 dt = 0.01
-Num_of_context = 50
-Num_of_pendulums = 1 #20 #40 #10
+Num_of_context = 40
+Num_of_pendulums = 10 #20 #40 #10
 
 
 
@@ -170,38 +170,42 @@ def run_inference_on_model(model, XData, YS, total_time, device, dt=0.01, contex
     XData_context = XData[start_index - context:start_index].to(device)
     YS_context = YS[start_index - context:start_index].to(device)
 
-    # XData_context_copy = XData_context.clone()
-    # YS_context_copy = YS_context.clone()
-    
     counter = 0
     for i in range(start_index, n_steps):
         with torch.no_grad():
             u_pred = model(XData_context, YS_context, inf = "yes")
+            # u_pred = model(XData_context_scaled, YS_context_scaled, inf = "yes")
             u = u_pred[0][-2].cpu().numpy()  
+            u = u * (5*0.98**i)
             # import ipdb; ipdb.set_trace()
             # print(f"u_pred: {u_pred}")
             # print(f"u: {u}")
 
         theta, thetadot = workCon.single_step_inverted_pendulum_rk4(
-            [XData_context[-1][0].cpu().numpy(), XData_context[-1][1].cpu().numpy()],
+            [XData_context[-1][0].cpu().numpy()*(5*0.98**i), XData_context[-1][1].cpu().numpy()*(5*0.98**i)],
             u,
             dt, mass = mass, length = length
         )
      
-        new_X = torch.tensor([theta, thetadot], dtype=torch.float32, device=device).unsqueeze(0)
+        new_X = torch.tensor([theta/(5*0.98**i), thetadot/(5*0.98**i)], dtype=torch.float32, device=device).unsqueeze(0)
         XData_context = torch.cat((XData_context, new_X), dim=0) ###### 2/11/2025 (ebonye): added [1:] to fix the context length (sliding window)
         # XData_context_copy = torch.cat((XData_context_copy, new_X), dim=0)
+        # new_X_scaled = torch.tensor([theta/(5*0.98**i), thetadot/(5*0.98**i)], dtype=torch.float32, device=device).unsqueeze(0)
+        # XData_context_scaled = torch.cat((XData_context_scaled, new_X_scaled), dim=0) ###### 2/11/2025 (ebonye): added [1:] to fix the context length (sliding window)
    
-        new_Y = torch.tensor(u, dtype=torch.float32, device=device).squeeze() 
+        new_Y = torch.tensor(u/(5*0.98**i), dtype=torch.float32, device=device).squeeze() 
+        # new_Y_scaled = torch.tensor(u/(5*0.98**i), dtype=torch.float32, device=device).squeeze()
        
         if counter == 0:
             YS_context = torch.cat((YS_context[:-1], new_Y.unsqueeze(0)), dim=0) ###### 2/11/2025 (ebonye): added [1:-1] to fix the context length
+            # YS_context_scaled = torch.cat((YS_context_scaled[:-1], new_Y_scaled.unsqueeze(0)), dim=0) ###### 2/11/2025 (ebonye): added [1:-1] to fix the context length
             # YS_context = YS_context[1:] 
             # YS_context_copy = torch.cat((YS_context_copy[:-1], new_Y.unsqueeze(0)), dim=0)
             counter = 1
             # print(YS_context.shape)
         else:
             YS_context = torch.cat((YS_context, new_Y.unsqueeze(0)), dim=0) ###### 2/11/2025 (ebonye): added [1:] to fix the context length
+            # YS_context_scaled = torch.cat((YS_context_scaled, new_Y_scaled.unsqueeze(0)), dim=0) ###### 2/11/2025 (ebonye): added [1:] to fix the context length
             # print(YS_context.shape)
             # YS_context_copy = torch.cat((YS_context_copy, new_Y.unsqueeze(0)), dim=0)
             # YS_context = YS_context[1:] ###### 2/11/2025 (ebonye): added this line to fix the context length
@@ -209,6 +213,13 @@ def run_inference_on_model(model, XData, YS, total_time, device, dt=0.01, contex
     theta_model = XData_context[:, 0].cpu().numpy()
     thetadot_model = XData_context[:, 1].cpu().numpy()
     YS_context = YS_context.cpu().numpy()
+
+    theta_model = [theta_model[i]*(5*0.98**i) for i in range(len(theta_model))]
+    theta_model = np.stack(theta_model, axis=0)
+    thetadot_model = [thetadot_model[i]*(5*0.98**i) for i in range(len(thetadot_model))]
+    thetadot_model = np.stack(thetadot_model, axis=0)
+    YS_context = [YS_context[i]*(5*0.98**i) for i in range(len(YS_context))]
+    YS_context = np.stack(YS_context, axis=0)
     # return T, theta_model, thetadot_model
     return T, theta_model, thetadot_model, YS_context
 
@@ -572,7 +583,18 @@ def main():
         X0s.append(np.squeeze(data[0])[0].cpu().detach().numpy())
 
     X0s_stored = X0s
-    
+
+    data_and_controls_unscaled = []
+    for dta_ctrl in data_and_controls:
+        theta_rk4 = (np.squeeze(dta_ctrl[0]).cpu().detach().numpy())[:, 0]
+        thetadot_rk4 = (np.squeeze(dta_ctrl[0]).cpu().detach().numpy())[:, 1]
+        control_values_rk4 = (np.squeeze(dta_ctrl[1]).cpu().detach().numpy())
+        theta_rk4_unscaled = np.stack([theta_rk4[i]*(5*0.98**i) for i in range(len(theta_rk4))], axis=0)
+        thetadot_rk4_unscaled = np.stack([thetadot_rk4[i]*(5*0.98**i) for i in range(len(thetadot_rk4))], axis=0)
+        control_values_rk4_unscaled = np.stack([control_values_rk4[i]*(5*0.98**i) for i in range(len(control_values_rk4))], axis=0)
+        state = np.column_stack((theta_rk4_unscaled, thetadot_rk4_unscaled))
+        # data_and_controls_unscaled.append(np.stack([state, control_values_rk4_unscaled], axis=1))
+        data_and_controls_unscaled.append((torch.tensor(state).float().cuda(), torch.tensor(control_values_rk4_unscaled).float().cuda()))
     
     
     with open(log_info_path, "w") as file:
@@ -602,6 +624,13 @@ def main():
             theta_rk4 = (np.squeeze(data_controls[0]).cpu().detach().numpy())[:, 0]
             thetadot_rk4 = (np.squeeze(data_controls[0]).cpu().detach().numpy())[:, 1]
             control_values_rk4 = (np.squeeze(data_controls[1]).cpu().detach().numpy())
+
+            data_controls_unscaled = data_and_controls_unscaled[counter]
+            theta_rk4_unscaled = (np.squeeze(data_controls_unscaled[0]).cpu().detach().numpy())[:, 0]
+            thetadot_rk4_unscaled = (np.squeeze(data_controls_unscaled[0]).cpu().detach().numpy())[:, 1]
+            control_values_rk4_unscaled = (np.squeeze(data_controls_unscaled[1]).cpu().detach().numpy())
+
+            
             
 
             # file.write(f"Current pendulum mass: {mass}\n")
@@ -644,10 +673,12 @@ def main():
                 thetadot_model = thetadot_model2[context:]
                 controls_model = controls_model2[context-1:]
                 # control_model = control_values_rk4[context:]
-                mse_loss = mse(theta_model, thetadot_model, theta_rk4_temp, thetadot_rk4_temp, device)
+                # mse_loss = mse(theta_model, thetadot_model, theta_rk4_temp, thetadot_rk4_temp, device)
+                mse_loss = mse(theta_model, thetadot_model, theta_rk4_unscaled[context:], thetadot_rk4_unscaled[context:], device)
                 mse_per_context.append(mse_loss)
 
-                mse_control_loss = mse_controls(controls_model, controls_rk4_temp, device)
+                # mse_control_loss = mse_controls(controls_model, controls_rk4_temp, device)
+                mse_control_loss = mse_controls(controls_model, control_values_rk4_unscaled[context:], device)
                 mse_control_per_context.append(mse_control_loss)
 
                 
@@ -718,7 +749,7 @@ def main():
     # plot_and_log_results(x_axis, context_lengths, save_results_path, folder_name, phase_plot_label)
 
     # return X0, masses, lengths, store_theta_model, store_thetadot_model
-    return X0s_stored, masses, lengths, phase_data, controls_data, data_and_controls, pends
+    return X0s_stored, masses, lengths, phase_data, controls_data, data_and_controls_unscaled, pends
 
 try:
     results = main()

@@ -119,8 +119,8 @@ def load_data(data_path):
         data = pickle.load(f)
     return data
 
-model_run_id = "11cdf7d5-d01d-4333-85ae-bf5a7465af9e"#"38bf57f0-0a4a-48ed-a423-ea4a38971179" #"9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
-data_path = f'inference_run/mse_control_48000_{model_run_id}/results_maxcontext50_numpends1_indistr.pkl'
+model_run_id = "b18ed057-5e72-472c-a6d8-8da441b57179" #"b30ed57a-7d3e-4be2-8534-57de7bc1508a" #"3712d4a7-2ea1-45db-ba05-4d993e7243ba" #"2289ff4f-8985-4b0a-a68f-fb4bec60a03f" #"11cdf7d5-d01d-4333-85ae-bf5a7465af9e"#"38bf57f0-0a4a-48ed-a423-ea4a38971179" #"9bb50653-5ed4-49c1-8dae-a876b2677236" #"3c33d621-e18a-4c4b-9844-54915b1de7b1"
+data_path = f'inference_run/mse_control_18400_{model_run_id}/results_maxcontext20_numpends1_train.pkl'
 X0s_stored, masses, lengths, phase_data, controls_data, data_and_controls, pends = load_data(data_path)
 # print(f'masses: {masses}')
 # print(f'lengths: {lengths}')
@@ -154,10 +154,10 @@ for context in phase_data.keys():
     plt.plot(phase_data[context][pendulum_index][:,0], phase_data[context][pendulum_index][:,1], label=f'Context: {context}', marker = 'o')
     # theta_dmd, thetadot_dmd = dynamic_mode_decomposition(phase_data[context][pendulum_index], X0s_stored[pendulum_index], total_time, dt, context)
     # plt.plot(theta_dmd, thetadot_dmd, label=f'DMD: Context {context}', marker = 'o')
-    if context == 40:
-        print(controls_data[context][pendulum_index])
-        print("------------------------------------------------------------------")
-        print(control_values_rk4)
+    # if context == 40:
+        # print(controls_data[context][pendulum_index])
+        # print("------------------------------------------------------------------")
+        # print(control_values_rk4)
 
 plt.xlabel('Theta')
 plt.ylabel('Theta_dot')
@@ -177,7 +177,7 @@ for context in phase_data.keys():
 fig.update_layout(title='Phase Space', xaxis_title='Theta', yaxis_title='Theta_dot')
 # fig.write_image('multipendulum_phaseplot_plotly.png')
 # fig.write_html('multipendulum_phaseplot_plotly.html')
-# fig.show()
+fig.show()
 
 ###################################################################################################3
 ##### plotting mse vs context length + error bars for all pendulums
@@ -275,23 +275,26 @@ plt.show()
 
 ###################################################################################################
 ##### Plotting Training Points
-pends = np.arange(0, 50)
-# plt.figure(figsize=(10, 6))
-# for i in range(len(pends)):
-#     print(f'Pendulum: {i}')
-#     datapath = f'dataset_pendulum/picklefolder/multipendulum_{i}.pkl'
-#     data_controls = load_data(datapath)
-#     theta_rk4 = (np.squeeze(data_controls[0]).cpu().detach().numpy())[:, 0]
-#     thetadot_rk4 = (np.squeeze(data_controls[0]).cpu().detach().numpy())[:, 1]
-#     control_values_rk4 = (np.squeeze(data_controls[1]).cpu().detach().numpy())
-#     plt.plot(theta_rk4, thetadot_rk4, label=f'Pendulum: {i}', marker = 'o')
+# pends = np.arange(0, 50)
+pends = np.random.choice(np.arange(0,5000), 50, replace=False)
+T = np.arange(0, total_time, dt)
+plt.figure(figsize=(10, 6))
+for i in range(len(pends)):
+    print(f'Pendulum: {i}')
+    datapath = f'dataset_pendulum/picklefolder/multipendulum_{i}.pkl'
+    data_controls = load_data(datapath)
+    theta_rk4 = (np.squeeze(data_controls[0]).cpu().detach().numpy())[:, 0]
+    thetadot_rk4 = (np.squeeze(data_controls[0]).cpu().detach().numpy())[:, 1]
+    control_values_rk4 = (np.squeeze(data_controls[1]).cpu().detach().numpy())
+    # plt.plot(theta_rk4, thetadot_rk4, label=f'Pendulum: {i}', marker = 'o')
+    plt.plot(theta_rk4, T, label=f'Pendulum: {i}', marker = 'o')
 
-# plt.xlabel('Theta')
-# plt.ylabel('Theta_dot')
-# plt.title('Training Points')
-# plt.legend(loc="upper left", bbox_to_anchor=(1,1))
-# plt.savefig('multipendulum_trainingpoints.png', bbox_inches='tight', dpi=300)
-# # plt.show()
+plt.xlabel('Theta')
+plt.ylabel('Theta_dot')
+plt.title('Training Points')
+plt.legend(loc="upper left", bbox_to_anchor=(1,1))
+plt.savefig('multipendulum_trainingpoints.png', bbox_inches='tight', dpi=300)
+# plt.show()
 
             
 

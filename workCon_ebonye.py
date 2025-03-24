@@ -46,7 +46,8 @@ def single_step_inverted_pendulum_rk4(X0, u, dt=0.01, mass = 1, length = 1):
 
 
 
-def simulate_inverted_pendulum_rk4(X0, total_time, dt=0.01, K=None,  mass = 1, length=1):
+# def simulate_inverted_pendulum_rk4(X0, total_time, dt=0.01, K=None,  mass = 1, length=1):
+def simulate_inverted_pendulum_rk4(X0, total_time, dt=0.01, mass = 1, length=1):
     """
     Simulates the dynamics of an inverted pendulum using the Runge-Kutta 4th-order method (RK4),
     with an optional state-feedback control law (LQR) applied.
@@ -80,10 +81,28 @@ def simulate_inverted_pendulum_rk4(X0, total_time, dt=0.01, K=None,  mass = 1, l
         - RK4 is used to find next states.
     """
     params = {'m': mass, 'l': length, 'b': 0.5, 'g': 9.81}
-    K = np.squeeze(K)
+    
+    # m = mass
+    # l = length
+    # b = 0.5
+    # g = 9.81
+
+    # A = np.array([[0, 1],
+    #               [g/l, -b/(m*l**2)]])
+    # B = np.array([[0],
+    #               [1/(m*l**2)]])
+
+    
+    # # Q = np.eye(2)    #  2x2 identity matrix for Q (just keep it constant but can tune)
+    Q = np.diag([1, 1]) 
+    R = np.array([[1]])  # # scalar 1 for R (can change but just keep constant for simplicity)
+    # K = compute_lqr_gain(A, B, Q, R)
+
+
+    # K = np.squeeze(K)
  
-    if K is None:
-        raise ValueError("no K LQR.")
+    # if K is None:
+        # raise ValueError("no K LQR.")
 
     T = np.arange(0, total_time + dt, dt)
     n_steps = len(T)
@@ -99,17 +118,40 @@ def simulate_inverted_pendulum_rk4(X0, total_time, dt=0.01, K=None,  mass = 1, l
     theta_d = 0.0
     thdot_d = 0.0
 
+    def linearized_dynamics(state):
+        m, l, b, g = params["m"], params["l"], params["b"], params["g"]
+        theta, thetadot = state
+        A = np.array([[0, 1],
+                      [g/l * np.cos(theta), -b/(m*l**2)]])
+        B = np.array([[0],
+                      [1/(m*l**2)]])
+        return A, B
+
+
     def f(x, u):
         m, l, b, g = params["m"], params["l"], params["b"], params["g"]
         theta = x[0]
         thetadot = x[1]
+        # print('u: ', u) 
+        # print("theta: ", theta)
+        # print("thetadot: ", thetadot)
         dtheta = thetadot
         dthetadot = (-b * thetadot + m * g * l * np.sin(theta) + u) / (m * l**2)
+        # print("dtheta: ", dtheta)
+        # print("dthetadot: ", dthetadot)
         return np.array([dtheta, dthetadot])
 
     for i in range(n_steps - 1):
-        u = -K @ (x - np.array([theta_d, thdot_d]))
+        # u = -K @ (x - np.array([theta_d, thdot_d]))
         # u = 0
+        state = np.array([x[0], x[1]], dtype=float)
+        # print("state: ", state)
+        # print("state type: ", type(state))
+        A, B = linearized_dynamics(state)
+        K = compute_lqr_gain(A, B, Q, R)
+        K = np.squeeze(K)
+        u = -K @ (x - np.array([theta_d, thdot_d]))
+
         tau[i] = u
 
         # RK4
@@ -167,18 +209,18 @@ def run_lqr_and_simulate(X0, total_time, dt=0.01, mass = 1, length = 1, check = 
                   [1/(m*l**2)]])
 
     
-    # Q = np.eye(2)    #  2x2 identity matrix for Q (just keep it constant but can tune)
-    Q = np.diag([1, 1]) 
-    R = np.array([[1]])  # # scalar 1 for R (can change but just keep constant for simplicity)
-    #### 2/24/2025 penalize control input ^
+    # # Q = np.eye(2)    #  2x2 identity matrix for Q (just keep it constant but can tune)
+    # Q = np.diag([1, 1]) 
+    # R = np.array([[1]])  # # scalar 1 for R (can change but just keep constant for simplicity)
+    # #### 2/24/2025 penalize control input ^
     
-    K = compute_lqr_gain(A, B, Q, R)
-    if check == True:
-        return K
+    # K = compute_lqr_gain(A, B, Q, R)
+    # if check == True:
+    #     return K
 
-    T, theta, thetadot, tau = simulate_inverted_pendulum_rk4(X0, total_time, dt, K=K, mass = mass, length=length)
-    # T, theta, thetadot, tau = simulate_inverted_pendulum_rk4(X0, total_time, dt, K=K, mass = 0.4, length=0.4)
-    return T, theta, thetadot, tau, K
+    # T, theta, thetadot, tau = simulate_inverted_pendulum_rk4(X0, total_time, dt, K=K, mass = mass, length=length)
+    T, theta, thetadot, tau = simulate_inverted_pendulum_rk4(X0, total_time, dt, mass = 0.4, length=0.4)
+    return T, theta, thetadot, tau
 
 
 def compute_lqr_gain(A, B, Q, R):
@@ -244,9 +286,9 @@ def simulate_inverted_pendulum_euler(X0, total_time, dt=0.01):
 
 def checking(X0, total_time, method='rk4', dt=0.01, mass=1,length=1):
     if method == 'rk4':
-        T, theta, thetadot, control_values, k_values = run_lqr_and_simulate(X0, total_time, dt, mass = mass, length=length)
+        T, theta, thetadot, control_values = run_lqr_and_simulate(X0, total_time, dt, mass = mass, length=length)
     elif method == 'euler':
         T, theta, thetadot, control_values = simulate_inverted_pendulum_euler(X0, total_time, dt)
     else:
         raise ValueError("Invalid method. Choose 'rk4' or 'euler'.")
-    return T, theta, thetadot, control_values, k_values
+    return T, theta, thetadot, control_values

@@ -55,6 +55,42 @@ def calculate_lyapunov_derivative(theta, thetadot, u, m=1, l=1, b=0.5, g=9.81):
     dV_dt = dV_dtheta * thetadot + dV_dthetadot * ddot_theta
     return dV_dt
 
+def weighted_l1_loss(xs, ys, output):
+    """
+    Calculate the weighted L1 loss between the predicted and true control inputs.
+
+    Args:
+        xs (torch.Tensor): The state trajectory of the system, with shape (batch_size, timesteps, 2),
+            where last dimension is [theta, thetadot].
+        ys (torch.Tensor): The control input of system, with shape (batch_size, u value).
+        output (torch.Tensor): The predicted control input of system, with shape (batch_size, u value).
+
+    Returns:
+        torch.Tensor: The weighted L1 loss between the predicted and true control inputs.
+    """
+    theta = xs[..., 0]
+    thetadot = xs[..., 1]
+    scale = 1 / (1e-3 + theta**2 + thetadot**2)
+    return torch.mean(scale * torch.abs(output - ys))
+
+def weighted_mse_loss(xs, ys, output):
+    """
+    Calculate the weighted MSE loss between the predicted and true control inputs.
+
+    Args:
+        xs (torch.Tensor): The state trajectory of the system, with shape (batch_size, timesteps, 2),
+            where last dimension is [theta, thetadot].
+        ys (torch.Tensor): The control input of system, with shape (batch_size, u value).
+        output (torch.Tensor): The predicted control input of system, with shape (batch_size, u value).
+
+    Returns:
+        torch.Tensor: The weighted MSE loss between the predicted and true control inputs.
+    """
+    theta = xs[..., 0]
+    thetadot = xs[..., 1]
+    scale = 1 / (1e-3 + theta**2 + thetadot**2)
+    return torch.mean(scale * (output - ys)**2)
+
 
 def lyapunov_loss(xs, ys, m=1, l=1, b=0.5, g=9.81, lambda_coeff=100):
     """
@@ -204,14 +240,27 @@ def train_step(model, xs, ys, optimizer, loss_func, i, args, mass, length, b=0.5
             - output (torch.Tensor): The model's predicted outputs for the input data (don't really use this for anything).
     """
     optimizer.zero_grad()
-    context = np.random.randint(0, (xs.size(1)//4))
+    
+    # context = np.random.randint(0, (xs.size(1)//4))
     output = model(xs, ys)
     # loss = loss_func(output[:, context:], ys[:, context:])
-    alpha = 0.2
-    weights = 1 + alpha * torch.abs(ys[:, context:])
-    loss = torch.mean(weights * (output[:, context:] - ys[:, context:])**2)
-    # import pdb; pdb.set_trace()
-    # loss = loss_func(output, ys)
+    # alpha = 0.2
+    # alpha = 0.1
+    # weights = 1 + alpha * torch.abs(ys[:, context:])
+    # loss = torch.mean(weights * (output[:, context:] - ys[:, context:])**2)
+    loss = loss_func(output, ys)
+
+    #############################
+    # loss_function = torch.nn.L1Loss()
+    # loss = loss_function(output, ys)
+    #############################
+    # loss = weighted_l1_loss(xs, ys, output)
+    #############################
+    # lbda = 0.2
+    # lbda = 2.0
+    # loss2 = weighted_mse_loss(xs, ys, output)
+    # loss = loss1 + lbda*loss2
+    # loss = loss_func(output[:, context:], ys[:, context:])
     # lambda_coeff2 = 1e-4
     # smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
     # lyapunov_loss_value = lyapunov_loss(xs, output, mass, length, b, g)
@@ -259,11 +308,18 @@ def train_step(model, xs, ys, optimizer, loss_func, i, args, mass, length, b=0.5
         log_training_info(file_path, i, args, xs, ys, output, total_loss)
 
     total_loss.backward()
+    old_grad_norm = sum(p.grad.detach().data.norm(2).item() ** 2 for p in model.parameters() if p.grad is not None) ** 0.5
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
     grad_norm = sum(p.grad.detach().data.norm(2).item() ** 2 for p in model.parameters() if p.grad is not None) ** 0.5
+    # for name, param in model.named_parameters():
+    #     if param.grad is not None:
+    #         print(f"Parameter: {name}, Gradient norm: {param.grad.norm().item()}")
+    #     else:
+    #         print(f"Parameter: {name}, Gradient is None")
+    # import pdb; pdb.set_trace()
 
     optimizer.step()
-    return total_loss.detach().item(), output.detach(), grad_norm
+    return total_loss.detach().item(), output.detach(), grad_norm, old_grad_norm
 
 def train_step_with_rk4(model, xs, ys, optimizer, loss_func, i, args, mass, length, b=0.5, g=9.81, dt=0.01):
     """
@@ -407,17 +463,24 @@ def load_dataset_chunk(pickle_folder, start_idx, end_idx):
             - ys (any): control u values.
     """
     dataset = []
+    masses = []
+    lengths = []
+    dataset_full = []
     with tqdm(total=end_idx - start_idx + 1, desc=f"Loading files {start_idx}-{end_idx}", leave=False) as load_pbar:
         for i in range(start_idx, end_idx + 1):
             pickle_path = os.path.join(pickle_folder, f"multipendulum_{i}.pkl")
             if os.path.exists(pickle_path):
                 with open(pickle_path, "rb") as f:
-                    xs, ys = pickle.load(f)
+                    # xs, ys = pickle.load(f)
+                    xs, ys, mass, length = pickle.load(f)
                     dataset.append((xs, ys))
+                    masses.append(mass)
+                    lengths.append(length)
+                    dataset_full.append((xs, ys, mass, length))
             else:
                 print(f"Pickle not found: {pickle_path}. Skipping...")
             load_pbar.update(1)
-    return dataset
+    return dataset, dataset_full, masses, lengths
 
 def load_dataset_full(pickle_folder):
     """
@@ -435,18 +498,25 @@ def load_dataset_full(pickle_folder):
         list: A list containing the loaded data from all the pickle files in the folder.
     """
     dataset = []
+    masses = []
+    lengths = []
+    dataset_full = []
     total_files = count_files_in_folder(pickle_folder, "multipendulum_", ".pkl")
     with tqdm(total=total_files, desc="Loading all files", leave=False) as load_pbar:
         for i in range(total_files):
             pickle_path = os.path.join(pickle_folder, f"multipendulum_{i}.pkl")
             if os.path.exists(pickle_path):
                 with open(pickle_path, "rb") as f:
-                    xs, ys = pickle.load(f)
+                    # xs, ys = pickle.load(f)
+                    xs, ys, mass, length = pickle.load(f)
                     dataset.append((xs, ys))
+                    masses.append(mass)
+                    lengths.append(length)
+                    dataset_full.append((xs, ys, mass, length))
             else:
                 print(f"Pickle not found: {pickle_path}. Skipping...")
             load_pbar.update(1)
-    return dataset
+    return dataset, dataset_full, masses, lengths
 
 def load_dataset_full_with_rk4(pickle_folder):
     """
@@ -670,12 +740,17 @@ def evaluate_model(model, id_data, ood_data, loss_func):
             # print(f"ys: {ys.size()}")
             xs = xs.cuda(3)
             ys = ys.cuda(3)
-            context = torch.randint(low = 2, high = (xs.size(1)//4), size=(1,)).item()
+            # context = torch.randint(low = 2, high = (xs.size(1)//4), size=(1,)).item()
 
             output = model(xs, ys)
 
-            loss = loss_func(output[:, context:], ys[:, context:])
-            # loss = loss_func(output, ys)
+            # loss = loss_func(output[:, context:], ys[:, context:])
+            loss = loss_func(output, ys)
+            #############################
+            # loss_function = torch.nn.L1Loss()
+            # loss = loss_function(output, ys)
+            #############################
+            # loss = weighted_l1_loss(xs, ys, output)
             # # smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
             # # loss = loss + smoothness_loss
         
@@ -691,10 +766,15 @@ def evaluate_model(model, id_data, ood_data, loss_func):
             ys = torch.squeeze(ys)
             xs = xs.cuda(3)
             ys = ys.cuda(3)
-            context = torch.randint(low = 2, high = (xs.size(1)//4), size=(1,)).item()
+            # context = torch.randint(low = 2, high = (xs.size(1)//4), size=(1,)).item()
             output = model(xs, ys)
-            loss = loss_func(output[:, context:], ys[:, context:])
-            # loss = loss_func(output, ys)
+            # loss = loss_func(output[:, context:], ys[:, context:])
+            loss = loss_func(output, ys)
+            #############################
+            # loss_function = torch.nn.L1Loss()
+            # loss = loss_function(output, ys)
+            #############################
+            # loss = weighted_l1_loss(xs, ys, output)
             # # smoothness_loss = lambda_coeff2 * torch.mean((output[:, 2:] - 2 * output[:, 1:-1] + output[:, :-2])**2) * 1e8
             # # loss = loss + smoothness_loss
             # loss = lyapunov_loss(xs, ys, masses, lengths)
@@ -803,6 +883,7 @@ def train(model, args):
     # optimizer = torch.optim.AdamW(model.parameters(), lr=args.training.learning_rate, weight_decay=5e-4)
     # optimizer = torch.optim.AdamW(model.parameters(), lr=args.training.learning_rate, weight_decay=7e-4)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.training.learning_rate, weight_decay=1e-2)
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=args.training.learning_rate)
 
     curriculum = Curriculum(args.training.curriculum)
     loss_function_name = args.loss
@@ -875,35 +956,74 @@ def train(model, args):
     # files_per_chunk = total_files // num_chunks
     # remainder = total_files % num_chunks
 
-    chunk_to_resume = 0
-    with tqdm(total=num_chunks-chunk_to_resume, desc="Chunk Progress") as chunk_pbar: ###ebonye 150
-        for chunk_idx in range(chunk_to_resume, num_chunks):
-            if args.use_chunk == 1:
-                # dataset = load_dataset_full(fullpicklepath)
-                dataset, dataset_full, masses, lengths = load_dataset_full_with_rk4(fullpicklepath)
-            else:
-                start_idx = chunk_idx * files_per_chunk
-                end_idx = start_idx + files_per_chunk - 1
-                if chunk_idx == num_chunks - 1:  
-                    end_idx += remainder
-                dataset = load_dataset_chunk(fullpicklepath, start_idx, end_idx)
+    # chunk_to_resume = 0
+    # with tqdm(total=num_chunks-chunk_to_resume, desc="Chunk Progress") as chunk_pbar: ###ebonye 150
+    #     for chunk_idx in range(chunk_to_resume, num_chunks):
+    #         if args.use_chunk == 1:
+    #             # dataset = load_dataset_full(fullpicklepath)
+    #             dataset, dataset_full, masses, lengths = load_dataset_full_with_rk4(fullpicklepath)
+    #         else:
+    #             start_idx = chunk_idx * files_per_chunk
+    #             end_idx = start_idx + files_per_chunk - 1
+    #             if chunk_idx == num_chunks - 1:  
+    #                 end_idx += remainder
+    #             # dataset = load_dataset_chunk(fullpicklepath, start_idx, end_idx)
+    #             dataset, dataset_full, masses, lengths = load_dataset_chunk(fullpicklepath, start_idx, end_idx)
 
-            print(f"loaded chunk {chunk_idx + 1}/{num_chunks}")
+    #         print(f"loaded chunk {chunk_idx + 1}/{num_chunks}")
 
 
-        batch_size = 64
-        dataloader = DataLoader(dataset_full, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+    #     batch_size = 64
+    #     dataloader = DataLoader(dataset_full, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
-        #### ebonye 3/15/2025 Cosine Scheduler
-        num_training_steps = num_epochs * len(dataloader)
-        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_training_steps, eta_min=1e-6)
-        warmup_steps =int(0.1 * num_training_steps)
-        lr_scheduler = get_scheduler(
-            "cosine",
-            optimizer=optimizer,
-            num_warmup_steps=warmup_steps,
-            num_training_steps=num_training_steps,
-        )
+        # train_ys = []
+        # train_xs = []
+        # for xs, ys, mass, length in dataset_full:
+        #     train_xs.append(xs)
+        #     train_ys.append(ys)
+        # train_xs = torch.cat(train_xs, dim=0)
+        # train_ys = torch.cat(train_ys, dim=0)
+
+        # train_xs_mean = xs.mean(dim=(0, 1))
+        # train_xs_std = xs.std(dim=(0, 1))
+        # train_ys_mean = ys.mean()
+        # train_ys_std = ys.std()
+
+        # xs_normalized = (train_xs - train_xs_mean) / (train_xs_std + 1e-6)
+        # ys_normalized = (train_ys - train_ys_mean) / (train_ys_std + 1e-6)
+        # # train_xs_flat = train_xs.view(-1, train_xs.size(-1))
+        # # train_ys_flat = train_ys.view(-1, train_ys.size(-1))
+        # # train_xs_mean = train_xs_flat.mean(dim=0)
+        # # train_xs_std = train_xs_flat.std(dim=0)
+        # # train_ys_mean = train_ys_flat.mean(dim=0)
+        # # train_ys_std = train_ys_flat.std(dim=0)
+        # # xs_normalized = (train_xs - train_xs_mean) / train_xs_std
+        # # ys_normalized = (train_ys - train_ys_mean) / train_ys_std
+        # # xs_normalized = xs_normalized.view(train_xs.size(0), train_xs.size(1), train_xs.size(2))
+        # # ys_normalized = ys_normalized.view(train_ys.size(0), train_ys.size(1))
+
+        # ### store the mean and std in pickle file
+        # with open(os.path.join(args.out_dir, "mean_std.pkl"), "wb") as f:
+        #     pickle.dump({'xs_mean': train_xs_mean, 'xs_std': train_xs_std, 'ys_mean': train_ys_mean, 'ys_std': train_ys_std}, f)
+        
+        # # import pdb; pdb.set_trace()
+        # ### replace dataloader with normalized data
+        # dataset_full = [(xs_normalized[i], ys_normalized[i], masses[i], lengths[i]) for i in range(len(xs_normalized))]
+        # dataloader = DataLoader(dataset_full, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
+
+
+        ### ebonye 3/15/2025 Cosine Scheduler
+    # num_training_steps = num_epochs * len(dataloader)
+    batch_size = 64
+    num_training_steps = num_epochs * total_files // batch_size
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_training_steps, eta_min=1e-6)
+    warmup_steps =int(0.1 * num_training_steps)
+    lr_scheduler = get_scheduler(
+        "cosine",
+        optimizer=optimizer,
+        num_warmup_steps=warmup_steps,
+        num_training_steps=num_training_steps,
+    )
 
     # for epoch in range(num_epochs):
     for epoch in range(start_epoch, num_epochs):
@@ -912,199 +1032,106 @@ def train(model, args):
         # print(f"Starting epoch {epoch + 1}/{epochs_per_phase[phase]} of Phase {phase}")
 
         # np.random.shuffle(phase_files)
+        ################ 3/19/2025 moving chunking back inside epoch loop
 
-        ################ ebonye 3/15/2025 moving outside of epoch loop
-        # chunk_to_resume = 0
-        # with tqdm(total=num_chunks-chunk_to_resume, desc="Chunk Progress") as chunk_pbar: ###ebonye 150
-        #     for chunk_idx in range(chunk_to_resume, num_chunks):
-        #         if args.use_chunk == 1:
-        #             # dataset = load_dataset_full(fullpicklepath)
-        #             dataset, dataset_full, masses, lengths = load_dataset_full_with_rk4(fullpicklepath)
-        #         else:
-        #             start_idx = chunk_idx * files_per_chunk
-        #             end_idx = start_idx + files_per_chunk - 1
-        #             if chunk_idx == num_chunks - 1:  
-        #                 end_idx += remainder
-        #             dataset = load_dataset_chunk(fullpicklepath, start_idx, end_idx)
-                    
+        chunk_to_resume = 0
+        with tqdm(total=num_chunks-chunk_to_resume, desc="Chunk Progress") as chunk_pbar: ###ebonye 150
+            for chunk_idx in range(chunk_to_resume, num_chunks):
+                if args.use_chunk == 1:
+                    # dataset = load_dataset_full(fullpicklepath)
+                    dataset, dataset_full, masses, lengths = load_dataset_full_with_rk4(fullpicklepath)
+                else:
+                    start_idx = chunk_idx * files_per_chunk
+                    end_idx = start_idx + files_per_chunk - 1
+                    if chunk_idx == num_chunks - 1:  
+                        end_idx += remainder
+                    # dataset = load_dataset_chunk(fullpicklepath, start_idx, end_idx)
+                    dataset, dataset_full, masses, lengths = load_dataset_chunk(fullpicklepath, start_idx, end_idx)
 
-        #         print(f"loaded chunk {chunk_idx + 1}/{num_chunks}")
-        ################
+                print(f"loaded chunk {chunk_idx + 1}/{num_chunks}")
 
-                ### ebonye 3/6/2025 curriculum learning
-                # if args.use_chunk == 1:
-                #     dataset = load_dataset_chunk_curriculum(phase_files, 0, len(phase_files)-1)
-                # else:
-                #     start_idx = chunk_idx * files_per_chunk
-                #     end_idx = start_idx + files_per_chunk - 1
-                #     if chunk_idx == num_chunks - 1:  
-                #         end_idx += remainder
 
-                #     dataset = load_dataset_chunk_curriculum(phase_files, start_idx, end_idx)
-                
-                # print(f"loaded chunk {chunk_idx + 1}/{num_chunks} of Phase {phase} and Epoch {epoch + 1}")
-                #### 2/25/2025 (ebonye) creating batches for same init cond training data
-                # my_batch_size = 8 #10
-                # new_dataset = []
-                
-                # x_batch = []
-                # y_batch = []
-                # for x, y in dataset:
-                #     x_batch.append(x.squeeze())
-                #     y_batch.append(y.squeeze())
-                #     if len(x_batch) == my_batch_size:
-                #         new_dataset.append((torch.stack(x_batch), torch.stack(y_batch)))
-                #         x_batch = []
-                #         y_batch = []
-                # dataset = new_dataset
-
-                # #### 2/25/2025 (ebonye) reformat dataset so that many mass/length in one batch
-                # my_batch_size = 8
-                # new_dataset = []
-                # x_batch = []
-                # y_batch = []
-                # for x, y in dataset:
-                #     x_batch.append(x)
-                #     y_batch.append(y)
-
-                # x_batch_merge = torch.cat(x_batch, dim=0)
-                # y_batch_merge = torch.cat(y_batch, dim=0)
-
-                # indices = torch.randperm(x_batch_merge.size(0))
-
-                # x_batch_merge = x_batch_merge[indices]
-                # y_batch_merge = y_batch_merge[indices]
-
-                # for i in range(0, x_batch_merge.size(0), my_batch_size):
-                #     new_dataset.append((x_batch_merge[i:i+my_batch_size], y_batch_merge[i:i+my_batch_size]))
-
-                # dataset = new_dataset
-                ##############################################
-                # #### 2/26/2025 (ebonye) batch the dataset
-                # # torch.manual_seed(epoch)
-                # # my_batch_size = 32
-                # my_batch_size = 64
-                # # bigger_indicies = torch.randperm(len(dataset))
-                # # dataset = [dataset[i] for i in bigger_indicies]
-
-                # ## permute dataset before batching
-                # indices_big_permute = torch.randperm(len(dataset))
-                # dataset = [dataset[i] for i in indices_big_permute]
-
-                # new_dataset = []
-                # x_batch = []
-                # y_batch = []
-                # for x, y in dataset:
-                #     x_batch.append(x)
-                #     y_batch.append(y)
-
-                #     if len(x_batch) == my_batch_size:
-                #         x_batch_merge = torch.cat(x_batch, dim=0)
-                #         y_batch_merge = torch.cat(y_batch, dim=0)
-                #         new_dataset.append((x_batch_merge, y_batch_merge))
-                #         x_batch = []
-                #         y_batch = []
-                    
-                # if len(x_batch) > 0:
-                #     x_batch_merge = torch.cat(x_batch, dim=0)
-                #     y_batch_merge = torch.cat(y_batch, dim=0)
-                #     new_dataset.append((x_batch_merge, y_batch_merge))
-
-                # #### 2/26/2025 (ebonye) shuffle the dataset
-                # # torch.manual_seed(epoch)
-                # indices = torch.randperm(len(new_dataset))
-                # new_dataset = [new_dataset[i] for i in indices]
-
-                # dataset = new_dataset
-                # del new_dataset, x_batch, y_batch
-                # torch.cuda.empty_cache()
-                # gc.collect()
-                ##############################################
-                #### 3/15/2025 (ebonye) moved to outside of epoch loop
-                # #### 3/11/2025 (ebonye) dataloader with different loss fn
                 # batch_size = 64
-                # dataloader = DataLoader(dataset_full, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-                
-
-        
-
-        # with tqdm(total=len(dataset), desc=f"Training Chunk {chunk_idx + 1}/{num_chunks}") as pbar:
-        with tqdm(total=len(dataloader), desc=f"Training Chunk {chunk_idx + 1}/{num_chunks}") as pbar:
-            # for xs, ys in dataset:
-            for xs, ys, masses, lengths in dataloader:
-                # print(f"xs: {xs}")
-                # print(f"ys: {ys}")
-                xs = xs.cuda(3)
-                ys = ys.cuda(3)
-
-                # print(f"xs: {xs.size()}")
-                # print(f"ys: {ys.size()}")
-
-                # import pdb; pdb.set_trace()
+                dataloader = DataLoader(dataset_full, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
 
-                # loss, output, gradnorm = train_step(model, xs, ys, optimizer, loss_function, current_step, args)
-                # print(f"initial lr: {optimizer.param_groups[0]['lr']}")
-                loss, output, gradnorm = train_step(model, xs, ys, optimizer, loss_function, current_step, args, masses, lengths)
-                lr_scheduler.step()
-                # loss, output_actions, output_states, gradnorm = train_step_with_rk4(model, xs, ys, optimizer, loss_function, current_step, args, masses, lengths)
-                # import pdb; pdb.set_trace()
-                # print(f"loss: {loss}")
-                # print(f"Epoch {epoch + 1}/{num_epochs}, Step {current_step}, Loss: {loss}, Current LR: {lr_scheduler.get_lr()[0]}")
-                print(f"Epoch {epoch + 1}/{num_epochs}, Step {current_step}, Loss: {loss}, Current LR: {optimizer.param_groups[0]['lr']}")
-                # import pdb; pdb.set_trace()
+                # with tqdm(total=len(dataset), desc=f"Training Chunk {chunk_idx + 1}/{num_chunks}") as pbar:
+                with tqdm(total=len(dataloader), desc=f"Training Chunk {chunk_idx + 1}/{num_chunks}") as pbar:
+                    # for xs, ys in dataset:
+                    for xs, ys, masses, lengths in dataloader:
+                        # print(f"xs: {xs}")
+                        # print(f"ys: {ys}")
+                        xs = xs.cuda(3)
+                        ys = ys.cuda(3)
 
-                # print(f"Phase {phase}, Epoch {epoch + 1}/{epochs_per_phase[phase]}, Step {current_step}, Loss: {loss}")
-                current_step += 1
-                pbar.update(1)
+                        # print(f"xs: {xs.size()}")
+                        # print(f"ys: {ys.size()}")
+
+                        # import pdb; pdb.set_trace()
+
+
+                        # loss, output, gradnorm = train_step(model, xs, ys, optimizer, loss_function, current_step, args)
+                        # print(f"initial lr: {optimizer.param_groups[0]['lr']}")
+                        loss, output, gradnorm, oldgradnorm = train_step(model, xs, ys, optimizer, loss_function, current_step, args, masses, lengths)
+                        lr_scheduler.step()
+                        # loss, output_actions, output_states, gradnorm = train_step_with_rk4(model, xs, ys, optimizer, loss_function, current_step, args, masses, lengths)
+                        # import pdb; pdb.set_trace()
+                        # print(f"loss: {loss}")
+                        # print(f"Epoch {epoch + 1}/{num_epochs}, Step {current_step}, Loss: {loss}, Current LR: {lr_scheduler.get_lr()[0]}")
+                        print(f"Epoch {epoch + 1}/{num_epochs}, Step {current_step}, Loss: {loss}, Current LR: {optimizer.param_groups[0]['lr']}, Old Grad Norm: {oldgradnorm}")
+                        # import pdb; pdb.set_trace()
+
+                        # print(f"Phase {phase}, Epoch {epoch + 1}/{epochs_per_phase[phase]}, Step {current_step}, Loss: {loss}")
+                        current_step += 1
+                        pbar.update(1)
+                        # torch.cuda.empty_cache()
+                        # gc.collect()
+
+
+
+                        if current_step % args.wandb.log_every_steps == 0 and not args.test_run:
+                            avg_id_loss, avg_ood_loss = evaluate_model(model, id_data, ood_data, loss_function)
+                            # avg_id_loss, avg_ood_loss = evaluate_model_with_rk4(model, id_data, ood_data, loss_function)
+                            wandb.log(
+                                {
+                                    "epoch": epoch + 1,
+                                    # "epoch": overall_epochs,
+                                    # "phase": phase,
+                                    "step": current_step,
+                                    "loss": loss,
+                                    "grad_norm": gradnorm,
+                                    "id_loss": avg_id_loss,
+                                    "ood_loss": avg_ood_loss
+                                }
+                            )
+
+                        curriculum.update()
+
+                        if current_step % args.training.save_every_steps == 0 and not args.test_run:
+                            training_state = {
+                                "model_state_dict": model.state_dict(),
+                                "optimizer_state_dict": optimizer.state_dict(),
+                                "train_step": current_step,
+                                "epoch": epoch+1,
+                                # "epoch": overall_epochs,
+                                "loss": loss,
+                            }
+                            torch.save(training_state, state_path)
+
+                            # checkpoint_path = os.path.join(args.out_dir, f"checkpoint_{current_step}.pt")
+                            checkpoint_path = os.path.join(args.out_dir, f"checkpoint_epoch{epoch+1}_step{current_step}.pt")
+                            # checkpoint_path = os.path.join(args.out_dir, f"checkpoint_epoch{overall_epochs}_step{current_step}.pt")
+                            # checkpoint_path = os.path.join(args.out_dir, f"checkpoint_phase{phase}_epoch{epoch+1}_step{current_step}.pt")
+                            torch.save(model.state_dict(), checkpoint_path)
+                            # print(f"Checkpoint saved at step {current_step}: {checkpoint_path}")
+                            print(f"Checkpoint saved at epoch {epoch+1}, step {current_step}: {checkpoint_path}")
+                            # print(f"Checkpoint saved at epoch {overall_epochs}, step {current_step}: {checkpoint_path}")
+
+                print(f"Chunk {chunk_idx + 1}/{num_chunks} finished. unloading dataset from memory...")
+                # del dataset
                 # torch.cuda.empty_cache()
                 # gc.collect()
-
-
-
-                if current_step % args.wandb.log_every_steps == 0 and not args.test_run:
-                    avg_id_loss, avg_ood_loss = evaluate_model(model, id_data, ood_data, loss_function)
-                    # avg_id_loss, avg_ood_loss = evaluate_model_with_rk4(model, id_data, ood_data, loss_function)
-                    wandb.log(
-                        {
-                            "epoch": epoch + 1,
-                            # "epoch": overall_epochs,
-                            # "phase": phase,
-                            "step": current_step,
-                            "loss": loss,
-                            "grad_norm": gradnorm,
-                            "id_loss": avg_id_loss,
-                            "ood_loss": avg_ood_loss
-                        }
-                    )
-
-                curriculum.update()
-
-                if current_step % args.training.save_every_steps == 0 and not args.test_run:
-                    training_state = {
-                        "model_state_dict": model.state_dict(),
-                        "optimizer_state_dict": optimizer.state_dict(),
-                        "train_step": current_step,
-                        "epoch": epoch+1,
-                        # "epoch": overall_epochs,
-                        "loss": loss,
-                    }
-                    torch.save(training_state, state_path)
-
-                    # checkpoint_path = os.path.join(args.out_dir, f"checkpoint_{current_step}.pt")
-                    checkpoint_path = os.path.join(args.out_dir, f"checkpoint_epoch{epoch+1}_step{current_step}.pt")
-                    # checkpoint_path = os.path.join(args.out_dir, f"checkpoint_epoch{overall_epochs}_step{current_step}.pt")
-                    # checkpoint_path = os.path.join(args.out_dir, f"checkpoint_phase{phase}_epoch{epoch+1}_step{current_step}.pt")
-                    torch.save(model.state_dict(), checkpoint_path)
-                    # print(f"Checkpoint saved at step {current_step}: {checkpoint_path}")
-                    print(f"Checkpoint saved at epoch {epoch+1}, step {current_step}: {checkpoint_path}")
-                    # print(f"Checkpoint saved at epoch {overall_epochs}, step {current_step}: {checkpoint_path}")
-
-        print(f"Chunk {chunk_idx + 1}/{num_chunks} finished. unloading dataset from memory...")
-        # del dataset
-        # torch.cuda.empty_cache()
-        # gc.collect()
-        chunk_pbar.update(1)
+                chunk_pbar.update(1)
         print(f"============== Finished Epoch {epoch + 1}/{num_epochs} ==============\n")
         # print(f"============== Finished Epoch {epoch + 1}/{epochs_per_phase[phase]} of Phase {phase} ==============\n")
         # overall_epochs += 1
@@ -1125,9 +1152,7 @@ def train(model, args):
     torch.save(model.state_dict(), checkpoint_path)
     # print(f"Final Checkpoint saved at epoch {overall_epochs}, step {current_step}: {checkpoint_path}")
     print(f"Final Checkpoint saved at epoch {epoch+1}, step {current_step}: {checkpoint_path}")
-    # print(f"============== Finished Epoch {epoch + 1}/{epochs_per_phase[phase]} of Phase {phase} ==============\n")
-    # print(f"============== Finished Phase {phase} ==============\n")
-                
+                        
 
 def main(args):
     if args.test_run:

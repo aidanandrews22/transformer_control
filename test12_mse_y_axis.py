@@ -36,7 +36,7 @@ mode = 'ood' # 'train', 'ood', 'indistr'
 total_time = 3 #5 #1.5
 dt = 0.01
 Num_of_context = 40
-Num_of_pendulums = 10 #20 #40 #10
+Num_of_pendulums = 9 #20 #40 #10
 
 
 
@@ -214,12 +214,17 @@ def run_inference_on_model(model, XData, YS, total_time, device, dt=0.01, contex
     thetadot_model = XData_context[:, 1].cpu().numpy()
     YS_context = YS_context.cpu().numpy()
 
-    theta_model = [theta_model[i]*(5*0.98**i) for i in range(len(theta_model))]
+    # import ipdb; ipdb.set_trace()
+    # theta_model = [theta_model[i]*(5*0.98**i) for i in range(len(theta_model))]
+    theta_model = [theta_model[i-(start_index-context)]*(5*0.98**i) for i in range(start_index-context, n_steps)]
     theta_model = np.stack(theta_model, axis=0)
-    thetadot_model = [thetadot_model[i]*(5*0.98**i) for i in range(len(thetadot_model))]
+    # thetadot_model = [thetadot_model[i]*(5*0.98**i) for i in range(len(thetadot_model))]
+    thetadot_model = [thetadot_model[i-(start_index-context)]*(5*0.98**i) for i in range(start_index-context, n_steps)]
     thetadot_model = np.stack(thetadot_model, axis=0)
-    YS_context = [YS_context[i]*(5*0.98**i) for i in range(len(YS_context))]
+    # YS_context = [YS_context[i]*(5*0.98**i) for i in range(len(YS_context))]
+    YS_context = [YS_context[i-(start_index-context)]*(5*0.98**i) for i in range(start_index-context, n_steps-1)]
     YS_context = np.stack(YS_context, axis=0)
+    
     # return T, theta_model, thetadot_model
     return T, theta_model, thetadot_model, YS_context
 
@@ -647,6 +652,7 @@ def main():
             # store_thetadot_model = []
             # for start_index in start_indices:
             # for context in contexts:
+            start_index = Num_of_context
             for context in tqdm(contexts, desc="Context Loop", leave=False):
                 # file.write(f"  Start Index: {start_index}\n")
                 # theta_rk4_temp = theta_rk4[start_index-1:]
@@ -656,9 +662,13 @@ def main():
                 thetadot_rk4_temp = thetadot_rk4[context:]
                 controls_rk4_temp = control_values_rk4[context:]
 
+                # T_model, theta_model2, thetadot_model2, controls_model2 = run_inference_on_model(
+                #     model, xs_dataset, control_values_rk4, total_time, device, dt, context=context, start_index=context, mass = mass, length = length
+                # )
+
                 T_model, theta_model2, thetadot_model2, controls_model2 = run_inference_on_model(
-                    model, xs_dataset, control_values_rk4, total_time, device, dt, context=context, start_index=context, mass = mass, length = length
-                )
+                    model, xs_dataset, control_values_rk4, total_time, device, dt, context=context, start_index=start_index, mass = mass, length = length
+                )                
 
                 
                 # store_theta_model.append(theta_model2)
@@ -669,16 +679,24 @@ def main():
                 phase_data[context].append(trajectory)
                 controls_data[context].append(controls_for_trajectory)
 
-                theta_model = theta_model2[context:]
-                thetadot_model = thetadot_model2[context:]
-                controls_model = controls_model2[context-1:]
+                # theta_model = theta_model2[context:]
+                # thetadot_model = thetadot_model2[context:]
+                # controls_model = controls_model2[context-1:]
+
+                theta_model = theta_model2[start_index:]
+                thetadot_model = thetadot_model2[start_index:]
+                controls_model = controls_model2[start_index-1:]
                 # control_model = control_values_rk4[context:]
                 # mse_loss = mse(theta_model, thetadot_model, theta_rk4_temp, thetadot_rk4_temp, device)
-                mse_loss = mse(theta_model, thetadot_model, theta_rk4_unscaled[context:], thetadot_rk4_unscaled[context:], device)
+                # mse_loss = mse(theta_model, thetadot_model, theta_rk4_unscaled[context:], thetadot_rk4_unscaled[context:], device)
+
+                # import ipdb; ipdb.set_trace()
+                mse_loss = mse(theta_model2, thetadot_model2, theta_rk4_unscaled[start_index-context:], thetadot_rk4_unscaled[start_index-context:], device)
                 mse_per_context.append(mse_loss)
 
                 # mse_control_loss = mse_controls(controls_model, controls_rk4_temp, device)
-                mse_control_loss = mse_controls(controls_model, control_values_rk4_unscaled[context:], device)
+                # mse_control_loss = mse_controls(controls_model2, control_values_rk4_unscaled[context:], device)
+                mse_control_loss = mse_controls(controls_model2, control_values_rk4_unscaled[start_index-context+1:], device)
                 mse_control_per_context.append(mse_control_loss)
 
                 
@@ -693,8 +711,11 @@ def main():
         mse_std = {context_length: np.std(mse_results[context_length]) for context_length in contexts}
         # print(f"Mean MSE: {mse_mean}")
         # print(f"Std MSE: {mse_std}")
+        mse_control_mean = {context_length: np.mean(mse_control_results[context_length]) for context_length in contexts}
+        mse_control_std = {context_length: np.std(mse_control_results[context_length]) for context_length in contexts}
 
-    plot_mse_vs_context_length(mse_mean, mse_std, save_results_path, folder_name, mse_plot_label)
+    # plot_mse_vs_context_length(mse_mean, mse_std, save_results_path, folder_name, mse_plot_label)
+    plot_mse_vs_context_length(mse_control_mean, mse_control_std, save_results_path, folder_name, mse_plot_label)
 
 
                 # for context1 in tqdm(range(len(context_lengths)), desc=f"Context Loop (Start Index {start_index})", leave=False):
@@ -757,7 +778,7 @@ try:
     # print(np.array(thetadot_models).shape)
 
     # save_results = os.join(folder_name, "results.pkl")
-    save_results = os.path.join(folder_name, f"results_maxcontext{Num_of_context}_numpends{Num_of_pendulums}_{mode}.pkl")
+    save_results = os.path.join(folder_name, f"results_maxcontext{Num_of_context}_numpends{Num_of_pendulums}_{mode}_changestart.pkl")
 
     with open(save_results, "wb") as f:
         pickle.dump(results, f)

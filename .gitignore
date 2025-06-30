@@ -1,4 +1,5 @@
-dataset_pendulum/
 models/test
+models/cartpole
 inference_run/
-dataset_pendulum_bigrange/
+__pycache__/
+

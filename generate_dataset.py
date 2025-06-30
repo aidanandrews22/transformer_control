@@ -296,12 +296,12 @@ def make_train_data(args):
     os.makedirs(test_data_dir, exist_ok=True)
     os.makedirs(test_data_dir_outofdistr, exist_ok=True) ## 3/5/2025 out of distribution data
 
-    unscaled_train_data_dir = os.path.join(args.dataset_filesfolder, "scaled_train")
-    unscaled_test_data_instr_dir = os.path.join(args.dataset_filesfolder, "scaled_test_indir")
-    unscaled_test_data_ood_dir = os.path.join(args.dataset_filesfolder, "scaled_test_ood")
-    os.makedirs(unscaled_train_data_dir, exist_ok=True)
-    os.makedirs(unscaled_test_data_instr_dir, exist_ok=True)
-    os.makedirs(unscaled_test_data_ood_dir, exist_ok=True)
+    # unscaled_train_data_dir = os.path.join(args.dataset_filesfolder, "scaled_train")
+    # unscaled_test_data_instr_dir = os.path.join(args.dataset_filesfolder, "scaled_test_indir")
+    # unscaled_test_data_ood_dir = os.path.join(args.dataset_filesfolder, "scaled_test_ood")
+    # os.makedirs(unscaled_train_data_dir, exist_ok=True)
+    # os.makedirs(unscaled_test_data_instr_dir, exist_ok=True)
+    # os.makedirs(unscaled_test_data_ood_dir, exist_ok=True)
     
     # easy_data_dir = os.path.join(base_data_dir, "easy")
     # medium_data_dir = os.path.join(base_data_dir, "medium")
@@ -336,17 +336,17 @@ def make_train_data(args):
             sampler = PendulumSampler(n_dims=2)
             # T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, bsize, mass = masses, length = lengths)
             T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
-            xs_scaled = [torch.squeeze(xs)[i]/(5*0.98**i) for i in range(len(torch.squeeze(xs)))] #### 3/19/2025 (ebonye) scaling
-            xs_scaled = torch.unsqueeze(torch.stack(xs_scaled), 0)
-            control_scaled = [torch.squeeze(control_values)[i]/(5*0.98**i) for i in range(len(torch.squeeze(control_values)))] #### 3/19/2025 (ebonye) scaling
-            control_scaled = torch.unsqueeze(torch.stack(control_scaled), 0)
+            # xs_scaled = [torch.squeeze(xs)[i]/(5*0.98**i) for i in range(len(torch.squeeze(xs)))] #### 3/19/2025 (ebonye) scaling
+            # xs_scaled = torch.unsqueeze(torch.stack(xs_scaled), 0)
+            # control_scaled = [torch.squeeze(control_values)[i]/(5*0.98**i) for i in range(len(torch.squeeze(control_values)))] #### 3/19/2025 (ebonye) scaling
+            # control_scaled = torch.unsqueeze(torch.stack(control_scaled), 0)
             pickle_file = f'multipendulum_{i}.pkl'
             pickle_path = os.path.join(base_data_dir, pickle_file)
-            save_pickle((xs_scaled, control_scaled, masses, lengths), pickle_path)
-            unscaled_pickle_path = os.path.join(unscaled_train_data_dir, pickle_file)
-            save_pickle((xs, control_values, masses, lengths), unscaled_pickle_path)
+            # save_pickle((xs_scaled, control_scaled, masses, lengths), pickle_path)
+            # unscaled_pickle_path = os.path.join(unscaled_train_data_dir, pickle_file)
+            # save_pickle((xs, control_values, masses, lengths), unscaled_pickle_path)
             # save_pickle((xs, control_values), pickle_path)
-            # save_pickle((xs, control_values, masses, lengths), pickle_path)
+            save_pickle((xs, control_values, masses, lengths), pickle_path)
             append_to_dataset_logger(i, masses, lengths, k_values, xs.shape, train_logger)
         
         # if i < easy_traj:
@@ -393,17 +393,17 @@ def make_train_data(args):
             sampler = PendulumSampler(n_dims=2)
             # T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, bsize, mass = masses, length = lengths)
             T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
-            xs_scaled = [torch.squeeze(xs)[i]/(5*0.98**i) for i in range(len(torch.squeeze(xs)))] #### 3/19/2025 (ebonye) scaling
-            xs_scaled = torch.unsqueeze(torch.stack(xs_scaled), 0)
-            control_scaled = [torch.squeeze(control_values)[i]/(5*0.98**i) for i in range(len(torch.squeeze(control_values)))] #### 3/19/2025 (ebonye) scaling
-            control_scaled = torch.unsqueeze(torch.stack(control_scaled), 0)
+            # xs_scaled = [torch.squeeze(xs)[i]/(5*0.98**i) for i in range(len(torch.squeeze(xs)))] #### 3/19/2025 (ebonye) scaling
+            # xs_scaled = torch.unsqueeze(torch.stack(xs_scaled), 0)
+            # control_scaled = [torch.squeeze(control_values)[i]/(5*0.98**i) for i in range(len(torch.squeeze(control_values)))] #### 3/19/2025 (ebonye) scaling
+            # control_scaled = torch.unsqueeze(torch.stack(control_scaled), 0)
             pickle_file = f'multipendulum_test_{i-args.training.train_steps}.pkl'
             pickle_path = os.path.join(test_data_dir, pickle_file)
-            unscaled_pickle_path = os.path.join(unscaled_test_data_instr_dir, pickle_file)
-            save_pickle((xs_scaled, control_scaled, masses, lengths), pickle_path)
-            save_pickle((xs, control_values, masses, lengths), unscaled_pickle_path)
+            # unscaled_pickle_path = os.path.join(unscaled_test_data_instr_dir, pickle_file)
+            # save_pickle((xs_scaled, control_scaled, masses, lengths), pickle_path)
+            # save_pickle((xs, control_values, masses, lengths), unscaled_pickle_path)
             # save_pickle((xs, control_values), pickle_path)
-            # save_pickle((xs, control_values, masses, lengths), pickle_path)
+            save_pickle((xs, control_values, masses, lengths), pickle_path)
             append_to_dataset_logger(i-args.training.train_steps, masses, lengths, k_values, xs.shape, test_logger)
         else:
             # masses, lengths = get_valid_masses_and_lengths_uniform(masslowerbound=0.2, massupperbound=0.3, lengthlowerbound=0.6, lengthupperbound=0.85) ## 3/5/2025 out of distribution data
@@ -414,16 +414,16 @@ def make_train_data(args):
             sampler = PendulumSampler(n_dims=2)
             T, xs, control_values, k_values = sampler.generate_xs_dataset(curriculum.n_points, mass = masses, length = lengths)
             pickle_file = f'multipendulum_test_outofdistr_{i-args.training.train_steps-args.training.test_pendulums}.pkl'
-            xs_scaled = [torch.squeeze(xs)[i]/(5*0.98**i) for i in range(len(torch.squeeze(xs)))]
-            xs_scaled = torch.unsqueeze(torch.stack(xs_scaled), 0)
-            control_scaled = [torch.squeeze(control_values)[i]/(5*0.98**i) for i in range(len(torch.squeeze(control_values)))]
-            control_scaled = torch.unsqueeze(torch.stack(control_scaled), 0)
+            # xs_scaled = [torch.squeeze(xs)[i]/(5*0.98**i) for i in range(len(torch.squeeze(xs)))]
+            # xs_scaled = torch.unsqueeze(torch.stack(xs_scaled), 0)
+            # control_scaled = [torch.squeeze(control_values)[i]/(5*0.98**i) for i in range(len(torch.squeeze(control_values)))]
+            # control_scaled = torch.unsqueeze(torch.stack(control_scaled), 0)
             pickle_path = os.path.join(test_data_dir_outofdistr, pickle_file)
-            unscaled_pickle_path = os.path.join(unscaled_test_data_ood_dir, pickle_file)
-            save_pickle((xs_scaled, control_scaled, masses, lengths), pickle_path)
-            save_pickle((xs, control_values, masses, lengths), unscaled_pickle_path)
+            # unscaled_pickle_path = os.path.join(unscaled_test_data_ood_dir, pickle_file)
+            # save_pickle((xs_scaled, control_scaled, masses, lengths), pickle_path)
+            # save_pickle((xs, control_values, masses, lengths), unscaled_pickle_path)
             # save_pickle((xs, control_values), pickle_path)
-            # save_pickle((xs, control_values, masses, lengths), pickle_path)
+            save_pickle((xs, control_values, masses, lengths), pickle_path)
             append_to_dataset_logger(i-args.training.train_steps-args.training.test_pendulums, masses, lengths, k_values, xs.shape, test_logger_outofdistr)
 
         # append_to_seed_file(seed_file, i, seed[0] + i, masses, lengths, k_values, xs.shape)

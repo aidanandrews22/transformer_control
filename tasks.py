@@ -15,6 +15,9 @@ def mean_squared_error_excluded(ys_pred, ys):
     ys = ys[:, 1:]
     return (ys - ys_pred).square().mean()
 
+def mean_absolute_error(ys_pred, ys):
+    return (ys - ys_pred).abs().mean()
+
 
 def log_mean_squared_error_excluded(ys_pred, ys, epsilon=1e-8):
     ys_pred = ys_pred[:, 1:]

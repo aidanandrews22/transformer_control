@@ -1,5 +1,6 @@
 import json
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"  # Set to the GPU you want to use, or -1 for CPU
 import sys
 
 from munch import Munch
@@ -28,12 +29,14 @@ def get_model_from_run(run_path, epoch, step=-1, only_conf=False):
     ###### 2/11/2025 (ebonye): fixed to remove "module." from keys so it can work for inference
     if step == -1:
         state_path = os.path.join(run_path, "state.pt")
-        state = torch.load(state_path)
+        # state = torch.load(state_path)
+        state = torch.load(state_path, map_location="cpu")  # ebonye 2/27/2025 added map_location="cpu" to avoid GPU memory issues
         # model.load_state_dict(state["model_state_dict"])
         state_dict = state["model_state_dict"]
     else:
         model_path = os.path.join(run_path, f"checkpoint_epoch{epoch}_step{step}.pt") #### ebonye 2/27/2025 change back to step{step}, added epoch
-        state_dict = torch.load(model_path)
+        # state_dict = torch.load(model_path)
+        state_dict = torch.load(model_path, map_location="cpu")  # ebonye 2/27/2025 added map_location="cpu" to avoid GPU memory issues
         # model.load_state_dict(state_dict)
 
     state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}

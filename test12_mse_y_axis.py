@@ -29,14 +29,14 @@ model_run_id= "0e78febc-150a-4490-bce8-b6d6d610dc94" #"b18ed057-5e72-472c-a6d8-8
 model_checkpoint_step= 39075 #18400 #46000 #97750 #10800 #29600 #46400 #97750
 model_checkpoint_epoch = 25 #59 #125 #14 #38 #60 #125
 folder_name = f"inference_run/{plot_label}_{model_checkpoint_step}_{model_run_id}"
-mode = 'ood' # 'train', 'ood', 'indistr'
+mode = 'indistr' # 'train', 'ood', 'indistr'
 
     
 
 total_time = 3 #5 #1.5
 dt = 0.01
 Num_of_context = 40
-Num_of_pendulums = 9 #20 #40 #10
+Num_of_pendulums = 11 #20 #40 #10
 
 
 
@@ -691,13 +691,35 @@ def main():
                 # mse_loss = mse(theta_model, thetadot_model, theta_rk4_unscaled[context:], thetadot_rk4_unscaled[context:], device)
 
                 # import ipdb; ipdb.set_trace()
-                mse_loss = mse(theta_model2, thetadot_model2, theta_rk4_unscaled[start_index-context:], thetadot_rk4_unscaled[start_index-context:], device)
+                # mse_loss = mse(theta_model2, thetadot_model2, theta_rk4_unscaled[start_index-context:], thetadot_rk4_unscaled[start_index-context:], device)
+                mse_loss = mse(theta_model2[context:], thetadot_model2[context:], theta_rk4_unscaled[start_index:], thetadot_rk4_unscaled[start_index:], device)
                 mse_per_context.append(mse_loss)
 
                 # mse_control_loss = mse_controls(controls_model, controls_rk4_temp, device)
                 # mse_control_loss = mse_controls(controls_model2, control_values_rk4_unscaled[context:], device)
-                mse_control_loss = mse_controls(controls_model2, control_values_rk4_unscaled[start_index-context+1:], device)
+                # mse_control_loss = mse_controls(controls_model2, control_values_rk4_unscaled[start_index-context+1:], device)
+                mse_control_loss = mse_controls(controls_model2[context-1:], control_values_rk4_unscaled[start_index:], device)
                 mse_control_per_context.append(mse_control_loss)
+
+                # import ipdb; ipdb.set_trace()
+
+                # print('\n')
+                # print(f"Context: {context}")
+                # print(f"Start Index: {start_index}")
+                # print(f"Theta Model: {theta_model2[context:context+5]}")
+                # print(f"Theta RK4: {theta_rk4_unscaled[start_index:start_index+5]}")
+                # print(f"Thetadot Model: {thetadot_model2[context:context+5]}")
+                # print(f"Thetadot RK4: {thetadot_rk4_unscaled[start_index:start_index+5]}")
+                # print(f"Control Model: {controls_model2[context:context+5]}")
+                # print(f"Control RK4: {control_values_rk4_unscaled[start_index-1:start_index+4]}")
+                # print(f"MSE Loss: {mse_loss}")
+                # print(f"MSE Control Loss: {mse_control_loss}")
+                # print('\n')
+
+                # import ipdb; ipdb.set_trace()
+
+
+               
 
                 
 
@@ -714,8 +736,8 @@ def main():
         mse_control_mean = {context_length: np.mean(mse_control_results[context_length]) for context_length in contexts}
         mse_control_std = {context_length: np.std(mse_control_results[context_length]) for context_length in contexts}
 
-    # plot_mse_vs_context_length(mse_mean, mse_std, save_results_path, folder_name, mse_plot_label)
-    plot_mse_vs_context_length(mse_control_mean, mse_control_std, save_results_path, folder_name, mse_plot_label)
+    plot_mse_vs_context_length(mse_mean, mse_std, save_results_path, folder_name, mse_plot_label)
+    # plot_mse_vs_context_length(mse_control_mean, mse_control_std, save_results_path, folder_name, mse_plot_label)
 
 
                 # for context1 in tqdm(range(len(context_lengths)), desc=f"Context Loop (Start Index {start_index})", leave=False):

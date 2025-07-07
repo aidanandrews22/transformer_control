@@ -1,0 +1,41 @@
+{
+  "os":  "macOS-15.5-arm64-arm-64bit",
+  "python":  "CPython 3.12.8",
+  "startedAt":  "2025-07-07T18:38:04.754150Z",
+  "args":  [
+    "--config",
+    "conf/cartpole_aidan.yaml"
+  ],
+  "program":  "/Users/aidan/Documents/Code/Work/berkeley/transformer_control/trainSequential.py",
+  "codePath":  "trainSequential.py",
+  "codePathLocal":  "trainSequential.py",
+  "git":  {
+    "remote":  "https://github.com/aidanandrews22/transformer_control.git",
+    "commit":  "f2b20e93ffd08c5ee27312f3f79536007c32bca9"
+  },
+  "email":  "aidanandrews0@gmail.com",
+  "root":  "output/cartpole_aidan/52196e4a-c26a-4ef1-80ec-545bc31b80d1",
+  "host":  "wifi-10-41-195-209.wifi.berkeley.edu",
+  "executable":  "/Users/aidan/pyenvs/berk/bin/python",
+  "cpu_count":  12,
+  "cpu_count_logical":  12,
+  "disk":  {
+    "/":  {
+      "total":  "994662584320",
+      "used":  "905266298880"
+    }
+  },
+  "memory":  {
+    "total":  "34359738368"
+  },
+  "apple":  {
+    "name":  "Apple M2 Max",
+    "ecpuCores":  4,
+    "pcpuCores":  8,
+    "gpuCores":  38,
+    "memoryGb":  32,
+    "swapTotalBytes":  "7516192768",
+    "ramTotalBytes":  "34359738368"
+  },
+  "writerId":  "tf78yc7ivd0zi7orxqocajgnpo7bwwt1"
+}

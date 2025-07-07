@@ -31,11 +31,15 @@ training:
             inc: 1
             interval: 2000000000
 
+# wandb:
+#     name: "small learning rate, mse+weighted mse, 1e-4 weight decay, learning rate scheduler"
+#     entity: "ebonyesmith-uc-berkeley-electrical-engineering-computer-" #"afrias5"
+#     project: "test"
 wandb:
-    name: "small learning rate, mse+weighted mse, 1e-4 weight decay, learning rate scheduler"
-    entity: "ebonyesmith-uc-berkeley-electrical-engineering-computer-" #"afrias5"
-    project: "test"
-
+  project: "cartpole-control"
+  entity: "aidansa"
+  notes: "CartPole swing-up control with hybrid controller data"
+  name: "XandYtest"
 
 
 

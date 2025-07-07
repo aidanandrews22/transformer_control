@@ -469,7 +469,9 @@ def train(model, args):
                     # for xs, ys in dataset:
                     # for xs, ys, masses, lengths in dataloader:
                     for xs, ys, cartmass, polemass, polelength in dataloader:
-                        
+                        # Move data to GPU
+                        xs = xs.cuda()
+                        ys = ys.cuda()
 
 
                         # loss, output, gradnorm = train_step(model, xs, ys, optimizer, loss_function, current_step, args)
@@ -581,15 +583,18 @@ def main(args):
             config=args.__dict__,
             notes=args.wandb.notes,
             name=args.wandb.name,
-            resume=True,
-            id=run_id if run_id is not None else None #### ebonye
+            resume=True
         )
 
     model = build_model(args.model)
-    device_ids = [0,1]
-    model = torch.nn.DataParallel(model, device_ids=device_ids)
-    model = model.to('cuda:0')
-    # model.cuda()
+    model = model.cuda()
+    # Use DataParallel only if multiple GPUs are available
+    if torch.cuda.device_count() > 1:
+        device_ids = list(range(torch.cuda.device_count()))
+        model = torch.nn.DataParallel(model, device_ids=device_ids)
+        print(f"Using DataParallel with {len(device_ids)} GPUs")
+    else:
+        print("Using single GPU")
 
 
 

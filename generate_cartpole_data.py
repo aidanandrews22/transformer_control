@@ -96,9 +96,9 @@ class CartPoleDataGenerator:
     
     def generate_batch(self, 
                       batch_size: int,
-                      mass_pole_range: Tuple[float, float] = (0.5, 1.5),
-                      mass_cart_range: Tuple[float, float] = (0.8, 1.2),
-                      length_range: Tuple[float, float] = (0.8, 1.2)) -> Tuple[torch.Tensor, torch.Tensor]:
+                      mass_pole_range: Tuple[float, float] = (0.3, 1.0),
+                      mass_cart_range: Tuple[float, float] = (1.8, 2.2),
+                      length_range: Tuple[float, float] = (1.0, 1.5)) -> Tuple[torch.Tensor, torch.Tensor, np.ndarray, np.ndarray, np.ndarray]:
         """
         Generate a batch of trajectories with randomized parameters.
         
@@ -109,18 +109,30 @@ class CartPoleDataGenerator:
             length_range: (min, max) range for length modifier
             
         Returns:
-            Tuple of (xs, ys) tensors:
+            Tuple of (xs, ys, cartmass, polemass, polelength):
             - xs: (batch_size, trajectory_length, 4) state sequences
             - ys: (batch_size, trajectory_length, 2) control sequences
+            - cartmass: (batch_size,) array of cart masses
+            - polemass: (batch_size,) array of pole masses
+            - polelength: (batch_size,) array of pole lengths
         """
         batch_states = []
         batch_controls = []
+        cartmasses = []
+        polemasses = []
+        polelengths = []
         
         for _ in range(batch_size):
-            # Sample random parameters
-            mass_pole_mod = np.random.uniform(*mass_pole_range)
-            mass_cart_mod = np.random.uniform(*mass_cart_range)
-            length_mod = np.random.uniform(*length_range)
+            # Sample random parameters - these are the actual values, not modifiers
+            cartmass = np.random.uniform(*mass_cart_range)
+            polemass = np.random.uniform(*mass_pole_range)
+            polelength = np.random.uniform(*length_range)
+            
+            # Calculate modifiers for the environment (relative to default values)
+            # Default CartPole-v1: cart_mass=1.0, pole_mass=0.1, pole_length=0.5
+            mass_cart_mod = cartmass / 1.0
+            mass_pole_mod = polemass / 0.1
+            length_mod = polelength / 0.5
             
             # Generate single trajectory
             states, controls = self.generate_single_trajectory(
@@ -131,18 +143,24 @@ class CartPoleDataGenerator:
             
             batch_states.append(states)
             batch_controls.append(controls)
+            cartmasses.append(cartmass)
+            polemasses.append(polemass)
+            polelengths.append(polelength)
         
         # Convert to tensors
         xs = torch.tensor(np.array(batch_states), dtype=torch.float32)
         ys = torch.tensor(np.array(batch_controls), dtype=torch.float32)
+        cartmass_array = np.array(cartmasses)
+        polemass_array = np.array(polemasses)
+        polelength_array = np.array(polelengths)
         
-        return xs, ys
+        return xs, ys, cartmass_array, polemass_array, polelength_array
     
     def save_dataset(self, 
                     output_dir: str,
                     num_batches: int,
                     batch_size: int,
-                    prefix: str = "cartpole_batch"):
+                    prefix: str = "batch"):
         """
         Generate and save dataset as pickle files.
         
@@ -160,14 +178,14 @@ class CartPoleDataGenerator:
         
         for batch_idx in tqdm(range(num_batches), desc="Generating batches"):
             # Generate batch
-            xs, ys = self.generate_batch(batch_size)
+            xs, ys, cartmass, polemass, polelength = self.generate_batch(batch_size)
             
             # Save as pickle
             pickle_file = f"{prefix}_{batch_idx}.pkl"
             pickle_path = os.path.join(output_dir, pickle_file)
             
             with open(pickle_path, 'wb') as f:
-                pickle.dump((xs, ys), f)
+                pickle.dump((xs, ys, cartmass, polemass, polelength), f)
         
         print(f"Dataset saved to {output_dir}")
         print(f"Data format: xs.shape = {xs.shape}, ys.shape = {ys.shape}")

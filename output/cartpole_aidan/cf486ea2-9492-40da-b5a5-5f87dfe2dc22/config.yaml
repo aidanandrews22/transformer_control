@@ -1,0 +1,52 @@
+config: conf/cartpole_aidan.yaml
+dataset_filesfolder: dataset_cartpole_aidan
+dataset_logger_textfile: dataset_log.txt
+dataset_test_logger_textfile: dataset_test_log.txt
+dataset_test_outofdistr_logger_textfile: dataset_test_ood_log.txt
+loss: mean_squared_error
+model:
+  family: gpt2
+  n_dims: 4
+  n_embd: 256
+  n_head: 8
+  n_layer: 8
+  n_positions: 400
+model_logger_textfile: blah.txt
+out_dir: output/cartpole_aidan/cf486ea2-9492-40da-b5a5-5f87dfe2dc22
+pickle_folder: .
+pickle_folder_test: test
+pickle_folder_test_outofdistr: test_ood
+test_run: false
+training:
+  batch_size: 16
+  curriculum:
+    dims:
+      end: 4
+      inc: 0
+      interval: 1000
+      start: 4
+    points:
+      end: 400
+      inc: 0
+      interval: 1000
+      start: 400
+  data: gaussian
+  epochs: 5
+  keep_every_steps: -1
+  learning_rate: 0.0001
+  num_tasks: null
+  num_training_examples: null
+  resume_id: null
+  save_every_steps: 50
+  task: linear_regression
+  task_kwargs: {}
+  test_pendulums: 10
+  test_pendulums_outofdistr: 10
+  train_steps: 100
+use_chunk: 1
+wandb:
+  entity: aidan-control
+  log_every_steps: 10
+  name: cartpole_aidan_v1
+  notes: CartPole swing-up control with hybrid controller data
+  project: transformer-cartpole-control

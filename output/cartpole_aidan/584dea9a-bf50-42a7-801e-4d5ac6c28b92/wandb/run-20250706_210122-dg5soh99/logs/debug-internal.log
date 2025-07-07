@@ -1,0 +1,17 @@
+{"time":"2025-07-06T21:01:22.604065-07:00","level":"INFO","msg":"stream: starting","core version":"0.21.0"}
+{"time":"2025-07-06T21:01:22.805576-07:00","level":"INFO","msg":"stream: created new stream","id":"dg5soh99"}
+{"time":"2025-07-06T21:01:22.805626-07:00","level":"INFO","msg":"stream: started","id":"dg5soh99"}
+{"time":"2025-07-06T21:01:22.805645-07:00","level":"INFO","msg":"writer: Do: started","stream_id":"dg5soh99"}
+{"time":"2025-07-06T21:01:22.805685-07:00","level":"INFO","msg":"sender: started","stream_id":"dg5soh99"}
+{"time":"2025-07-06T21:01:22.80565-07:00","level":"INFO","msg":"handler: started","stream_id":"dg5soh99"}
+{"time":"2025-07-06T21:01:22.915555-07:00","level":"ERROR","msg":"HTTP error","status":403,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-07-06T21:01:22.91561-07:00","level":"ERROR","msg":"runupserter: failed to init run","error":"returned error 403: {\"data\":{\"upsertBucket\":null},\"errors\":[{\"message\":\"permission denied\",\"path\":[\"upsertBucket\"],\"extensions\":{\"code\":\"PERMISSION_ERROR\"}}]}"}
+{"time":"2025-07-06T21:01:23.917827-07:00","level":"INFO","msg":"stream: closing","id":"dg5soh99"}
+{"time":"2025-07-06T21:01:23.918415-07:00","level":"ERROR","msg":"sender: uploadConfigFile: stream: no run"}
+{"time":"2025-07-06T21:01:24.029711-07:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-07-06T21:01:24.029767-07:00","level":"ERROR","msg":"runfiles: CreateRunFiles returned error: returned error 404: {\"data\":{\"createRunFiles\":null},\"errors\":[{\"message\":\"project aidanandrews0/aidansa not found during createRunFiles\",\"path\":[\"createRunFiles\"]}]}"}
+{"time":"2025-07-06T21:01:24.030432-07:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-07-06T21:01:24.030478-07:00","level":"INFO","msg":"handler: closed","stream_id":"dg5soh99"}
+{"time":"2025-07-06T21:01:24.030483-07:00","level":"INFO","msg":"sender: closed","stream_id":"dg5soh99"}
+{"time":"2025-07-06T21:01:24.03071-07:00","level":"INFO","msg":"writer: Close: closed","stream_id":"dg5soh99"}
+{"time":"2025-07-06T21:01:24.030721-07:00","level":"INFO","msg":"stream: closed","id":"dg5soh99"}

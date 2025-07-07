@@ -1,0 +1,17 @@
+{"time":"2025-07-06T20:59:58.700385-07:00","level":"INFO","msg":"stream: starting","core version":"0.21.0"}
+{"time":"2025-07-06T20:59:59.104969-07:00","level":"INFO","msg":"stream: created new stream","id":"ut4eon03"}
+{"time":"2025-07-06T20:59:59.105008-07:00","level":"INFO","msg":"stream: started","id":"ut4eon03"}
+{"time":"2025-07-06T20:59:59.105023-07:00","level":"INFO","msg":"writer: Do: started","stream_id":"ut4eon03"}
+{"time":"2025-07-06T20:59:59.105102-07:00","level":"INFO","msg":"handler: started","stream_id":"ut4eon03"}
+{"time":"2025-07-06T20:59:59.105119-07:00","level":"INFO","msg":"sender: started","stream_id":"ut4eon03"}
+{"time":"2025-07-06T20:59:59.234171-07:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-07-06T20:59:59.234238-07:00","level":"ERROR","msg":"runupserter: failed to init run","error":"returned error 404: {\"data\":{\"upsertBucket\":null},\"errors\":[{\"message\":\"entity aidan-control not found during upsertBucket\",\"path\":[\"upsertBucket\"]}]}"}
+{"time":"2025-07-06T21:00:00.236109-07:00","level":"INFO","msg":"stream: closing","id":"ut4eon03"}
+{"time":"2025-07-06T21:00:00.236485-07:00","level":"ERROR","msg":"sender: uploadConfigFile: stream: no run"}
+{"time":"2025-07-06T21:00:00.346862-07:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-07-06T21:00:00.346998-07:00","level":"ERROR","msg":"runfiles: CreateRunFiles returned error: returned error 404: {\"data\":{\"createRunFiles\":null},\"errors\":[{\"message\":\"entity aidan-control not found during createRunFiles\",\"path\":[\"createRunFiles\"]}]}"}
+{"time":"2025-07-06T21:00:00.34766-07:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-07-06T21:00:00.347752-07:00","level":"INFO","msg":"handler: closed","stream_id":"ut4eon03"}
+{"time":"2025-07-06T21:00:00.347771-07:00","level":"INFO","msg":"writer: Close: closed","stream_id":"ut4eon03"}
+{"time":"2025-07-06T21:00:00.34778-07:00","level":"INFO","msg":"sender: closed","stream_id":"ut4eon03"}
+{"time":"2025-07-06T21:00:00.347892-07:00","level":"INFO","msg":"stream: closed","id":"ut4eon03"}

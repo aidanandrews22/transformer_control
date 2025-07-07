@@ -1,0 +1,134 @@
+_wandb:
+    value:
+        cli_version: 0.21.0
+        e:
+            zsf3955cqgn9d82i5otks36gis3l6y9p:
+                apple:
+                    ecpuCores: 4
+                    gpuCores: 38
+                    memoryGb: 32
+                    name: Apple M2 Max
+                    pcpuCores: 8
+                    ramTotalBytes: "34359738368"
+                    swapTotalBytes: "10737418240"
+                args:
+                    - --config
+                    - conf/cartpole_aidan.yaml
+                codePath: trainSequential.py
+                codePathLocal: trainSequential.py
+                cpu_count: 12
+                cpu_count_logical: 12
+                disk:
+                    /:
+                        total: "994662584320"
+                        used: "898627497984"
+                email: aidanandrews0@gmail.com
+                executable: /Users/aidan/pyenvs/berk/bin/python
+                git:
+                    commit: 80c7a95f80f314528996b83719d622a53549243c
+                    remote: https://github.com/aidanandrews22/transformer_control.git
+                host: wifi-10-40-194-0.wifi.berkeley.edu
+                memory:
+                    total: "34359738368"
+                os: macOS-15.5-arm64-arm-64bit
+                program: /Users/aidan/Documents/Code/Work/berkeley/transformer_control/trainSequential.py
+                python: CPython 3.12.8
+                root: output/cartpole_aidan/be970751-ef49-443a-9a0d-fdefcdddd736
+                startedAt: "2025-07-07T04:06:41.208284Z"
+                writerId: zsf3955cqgn9d82i5otks36gis3l6y9p
+        m: []
+        python_version: 3.12.8
+        t:
+            "1":
+                - 1
+                - 5
+                - 6
+                - 9
+                - 11
+                - 49
+                - 53
+                - 103
+            "2":
+                - 1
+                - 5
+                - 6
+                - 9
+                - 11
+                - 49
+                - 53
+                - 103
+            "3":
+                - 13
+                - 16
+            "4": 3.12.8
+            "5": 0.21.0
+            "6": 4.53.1
+            "12": 0.21.0
+            "13": darwin-arm64
+config:
+    value: conf/cartpole_aidan.yaml
+dataset_filesfolder:
+    value: dataset_cartpole_aidan
+dataset_logger_textfile:
+    value: dataset_log.txt
+dataset_test_logger_textfile:
+    value: dataset_test_log.txt
+dataset_test_outofdistr_logger_textfile:
+    value: dataset_test_ood_log.txt
+loss:
+    value: mean_squared_error
+model:
+    value:
+        family: gpt2
+        n_dims: 4
+        n_embd: 256
+        n_head: 8
+        n_layer: 8
+        n_positions: 400
+model_logger_textfile:
+    value: blah.txt
+out_dir:
+    value: output/cartpole_aidan/be970751-ef49-443a-9a0d-fdefcdddd736
+pickle_folder:
+    value: .
+pickle_folder_test:
+    value: test
+pickle_folder_test_outofdistr:
+    value: test_ood
+test_run:
+    value: false
+training:
+    value:
+        batch_size: 16
+        curriculum:
+            dims:
+                end: 4
+                inc: 0
+                interval: 1000
+                start: 4
+            points:
+                end: 400
+                inc: 0
+                interval: 1000
+                start: 400
+        data: gaussian
+        epochs: 5
+        keep_every_steps: -1
+        learning_rate: 0.0001
+        num_tasks: null
+        num_training_examples: null
+        resume_id: null
+        save_every_steps: 50
+        task: linear_regression
+        test_pendulums: 10
+        test_pendulums_outofdistr: 10
+        train_steps: 100
+use_chunk:
+    value: 1
+wandb:
+    value:
+        entity: aidansa
+        log_every_steps: 10
+        name: cartpole_aidan_v1
+        notes: CartPole swing-up control with hybrid controller data
+        project: cartpole-control

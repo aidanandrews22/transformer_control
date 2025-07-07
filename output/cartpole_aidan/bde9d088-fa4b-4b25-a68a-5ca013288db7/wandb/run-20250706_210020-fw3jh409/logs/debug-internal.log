@@ -1,0 +1,17 @@
+{"time":"2025-07-06T21:00:20.680686-07:00","level":"INFO","msg":"stream: starting","core version":"0.21.0"}
+{"time":"2025-07-06T21:00:20.879394-07:00","level":"INFO","msg":"stream: created new stream","id":"fw3jh409"}
+{"time":"2025-07-06T21:00:20.879421-07:00","level":"INFO","msg":"stream: started","id":"fw3jh409"}
+{"time":"2025-07-06T21:00:20.879437-07:00","level":"INFO","msg":"writer: Do: started","stream_id":"fw3jh409"}
+{"time":"2025-07-06T21:00:20.879891-07:00","level":"INFO","msg":"sender: started","stream_id":"fw3jh409"}
+{"time":"2025-07-06T21:00:20.879904-07:00","level":"INFO","msg":"handler: started","stream_id":"fw3jh409"}
+{"time":"2025-07-06T21:00:21.001723-07:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-07-06T21:00:21.001807-07:00","level":"ERROR","msg":"runupserter: failed to init run","error":"returned error 404: {\"data\":{\"upsertBucket\":null},\"errors\":[{\"message\":\"entity aidan-control not found during upsertBucket\",\"path\":[\"upsertBucket\"]}]}"}
+{"time":"2025-07-06T21:00:22.004342-07:00","level":"INFO","msg":"stream: closing","id":"fw3jh409"}
+{"time":"2025-07-06T21:00:22.004931-07:00","level":"ERROR","msg":"sender: uploadConfigFile: stream: no run"}
+{"time":"2025-07-06T21:00:22.115016-07:00","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-07-06T21:00:22.115079-07:00","level":"ERROR","msg":"runfiles: CreateRunFiles returned error: returned error 404: {\"data\":{\"createRunFiles\":null},\"errors\":[{\"message\":\"entity aidan-control not found during createRunFiles\",\"path\":[\"createRunFiles\"]}]}"}
+{"time":"2025-07-06T21:00:22.116039-07:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-07-06T21:00:22.116092-07:00","level":"INFO","msg":"handler: closed","stream_id":"fw3jh409"}
+{"time":"2025-07-06T21:00:22.116098-07:00","level":"INFO","msg":"sender: closed","stream_id":"fw3jh409"}
+{"time":"2025-07-06T21:00:22.116353-07:00","level":"INFO","msg":"writer: Close: closed","stream_id":"fw3jh409"}
+{"time":"2025-07-06T21:00:22.116367-07:00","level":"INFO","msg":"stream: closed","id":"fw3jh409"}

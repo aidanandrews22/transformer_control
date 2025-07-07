@@ -1,0 +1,52 @@
+out_dir: "output/cartpole_aidan"
+dataset_filesfolder: "dataset_cartpole_aidan"
+pickle_folder: "."
+pickle_folder_test: "test"
+pickle_folder_test_outofdistr: "test_ood"
+dataset_logger_textfile: "dataset_log.txt"
+dataset_test_logger_textfile: "dataset_test_log.txt"
+dataset_test_outofdistr_logger_textfile: "dataset_test_ood_log.txt"
+loss: "mean_squared_error"
+use_chunk: 1
+
+model:
+  family: "gpt2"
+  n_positions: 400  # Maximum trajectory length
+  n_dims: 4         # State dimension [x, x_dot, theta, theta_dot]
+  n_embd: 256       # Embedding dimension
+  n_layer: 8        # Number of transformer layers
+  n_head: 8         # Number of attention heads
+
+training:
+  task: "linear_regression"
+  task_kwargs: {}
+  data: "gaussian"
+  epochs: 5
+  batch_size: 16
+  learning_rate: 0.0001  # 1e-4 as float
+  train_steps: 100
+  test_pendulums: 10
+  test_pendulums_outofdistr: 10
+  save_every_steps: 50
+  keep_every_steps: -1
+  resume_id: null
+  curriculum:
+    dims:
+      start: 4
+      end: 4
+      inc: 0
+      interval: 1000
+    points:
+      start: 400
+      end: 400
+      inc: 0
+      interval: 1000
+
+wandb:
+  project: "cartpole-control"
+  entity: "aidansa"
+  notes: "CartPole swing-up control with hybrid controller data"
+  name: "cartpole_aidan_v1"
+  log_every_steps: 10
+
+test_run: false 

@@ -1,0 +1,15 @@
+2025-07-06 21:01:22,344 INFO    MainThread:21649 [wandb_setup.py:_flush():80] Current SDK version is 0.21.0
+2025-07-06 21:01:22,345 INFO    MainThread:21649 [wandb_setup.py:_flush():80] Configure stats pid to 21649
+2025-07-06 21:01:22,345 INFO    MainThread:21649 [wandb_setup.py:_flush():80] Loading settings from /Users/aidan/.config/wandb/settings
+2025-07-06 21:01:22,345 INFO    MainThread:21649 [wandb_setup.py:_flush():80] Loading settings from /Users/aidan/Documents/Code/Work/berkeley/transformer_control/wandb/settings
+2025-07-06 21:01:22,345 INFO    MainThread:21649 [wandb_setup.py:_flush():80] Loading settings from environment variables
+2025-07-06 21:01:22,345 INFO    MainThread:21649 [wandb_init.py:setup_run_log_directory():703] Logging user logs to output/cartpole_aidan/584dea9a-bf50-42a7-801e-4d5ac6c28b92/wandb/run-20250706_210122-dg5soh99/logs/debug.log
+2025-07-06 21:01:22,345 INFO    MainThread:21649 [wandb_init.py:setup_run_log_directory():704] Logging internal logs to output/cartpole_aidan/584dea9a-bf50-42a7-801e-4d5ac6c28b92/wandb/run-20250706_210122-dg5soh99/logs/debug-internal.log
+2025-07-06 21:01:22,345 INFO    MainThread:21649 [wandb_init.py:init():830] calling init triggers
+2025-07-06 21:01:22,345 INFO    MainThread:21649 [wandb_init.py:init():835] wandb.init called with sweep_config: {}
+config: {'config': 'conf/cartpole_aidan.yaml', 'training': {'num_training_examples': None, 'curriculum': {'dims': {'start': 4, 'inc': 0, 'interval': 1000, 'end': 4}, 'points': {'end': 400, 'start': 400, 'inc': 0, 'interval': 1000}}, 'resume_id': None, 'train_steps': 100, 'test_pendulums': 10, 'test_pendulums_outofdistr': 10, 'num_tasks': None, 'keep_every_steps': -1, 'data': 'gaussian', 'epochs': 5, 'task_kwargs': {}, 'save_every_steps': 50, 'batch_size': 16, 'learning_rate': 0.0001, 'task': 'linear_regression'}, 'wandb': {'name': 'cartpole_aidan_v1', 'log_every_steps': 10, 'notes': 'CartPole swing-up control with hybrid controller data', 'entity': 'aidanandrews0', 'project': 'aidansa'}, 'model': {'n_layer': 8, 'n_embd': 256, 'n_dims': 4, 'family': 'gpt2', 'n_positions': 400, 'n_head': 8}, 'use_chunk': 1, 'dataset_logger_textfile': 'dataset_log.txt', 'dataset_test_logger_textfile': 'dataset_test_log.txt', 'pickle_folder_test': 'test', 'dataset_test_outofdistr_logger_textfile': 'dataset_test_ood_log.txt', 'dataset_filesfolder': 'dataset_cartpole_aidan', 'loss': 'mean_squared_error', 'test_run': False, 'model_logger_textfile': 'blah.txt', 'out_dir': 'output/cartpole_aidan/584dea9a-bf50-42a7-801e-4d5ac6c28b92', 'pickle_folder': '.', 'pickle_folder_test_outofdistr': 'test_ood', '_wandb': {}}
+2025-07-06 21:01:22,345 INFO    MainThread:21649 [wandb_init.py:init():871] starting backend
+2025-07-06 21:01:22,570 INFO    MainThread:21649 [wandb_init.py:init():874] sending inform_init request
+2025-07-06 21:01:22,598 INFO    MainThread:21649 [wandb_init.py:init():882] backend started and connected
+2025-07-06 21:01:22,602 INFO    MainThread:21649 [wandb_init.py:init():953] updated telemetry
+2025-07-06 21:01:22,621 INFO    MainThread:21649 [wandb_init.py:init():977] communicating run to backend with 90.0 second timeout

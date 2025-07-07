@@ -52,7 +52,7 @@ This will create 100 pickle files with CartPole trajectories in the `dataset_car
 Execute the full training pipeline:
 
 ```bash
-python run_full_training.py
+python run_full_training.py --config conf/cartpole_aidan.yaml
 ```
 
 The script will:
@@ -77,7 +77,7 @@ Expected training time: **Several hours to days** depending on your hardware.
 After training, test the model's inference capabilities:
 
 ```bash
-python test_trained_model.py
+python test_trained_model.py --config conf/cartpole_aidan.yaml
 ```
 
 This will:

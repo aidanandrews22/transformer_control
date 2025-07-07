@@ -35,7 +35,7 @@ def main():
     
     # Parse configuration
     parser = QuinineArgumentParser(schema=schema)
-    args = parser.parse_quinfig(args_file="conf/cartpole_aidan.yaml")
+    args = parser.parse_quinfig()
     
     # Validate dataset exists
     dataset_path = args.dataset_filesfolder

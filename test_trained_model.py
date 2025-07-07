@@ -101,7 +101,7 @@ def main():
     
     # Parse configuration
     parser = QuinineArgumentParser(schema=schema)
-    args = parser.parse_quinfig(args_file="conf/cartpole_aidan.yaml")
+    args = parser.parse_quinfig()
     
     # Set device
     device = 'cuda' if torch.cuda.is_available() else 'cpu'

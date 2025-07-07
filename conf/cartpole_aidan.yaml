@@ -13,9 +13,9 @@ model:
   family: "gpt2"
   n_positions: 1024  # Maximum trajectory length
   n_dims: 4         # State dimension [x, x_dot, theta, theta_dot]
-  # n_embd: 256       # Embedding dimension
-  # n_layer: 8        # Number of transformer layers
-  # n_head: 8         # Number of attention heads
+  n_embd: 256       # Embedding dimension
+  n_layer: 8        # Number of transformer layers
+  n_head: 8         # Number of attention heads
 
 training:
   task: linear_regression

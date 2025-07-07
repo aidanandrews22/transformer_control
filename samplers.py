@@ -4,9 +4,8 @@ import math
 import torch
 import numpy as np
 # from workCon import checking 
-# from workCon_ebonye import checking   ##### 2/8/2025 (ebonye): using this for pendulum
-# from workCon_linearsys import checking
-from workCon_cartpole import checking
+# from workCon_ebonye import checking 
+from workCon_linearsys import checking
 from workCon_cartpole import checking as checking_cartpole
 import crocoddyl
 # from cartpole_optimal_trajectory import get_trajectory

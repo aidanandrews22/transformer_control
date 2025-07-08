@@ -25,13 +25,14 @@ class ContinuousCartPoleEnv(gym.Env[np.ndarray, np.ndarray]):
         self.length = length
         self.polemass_length = self.masspole * self.length
         self.force_mag = 100.0
-        self.tau = 0.025 #0.02
-        self.kinematics_integrator = "euler"
-        # self.kinematics_integrator = "rk4"  # "euler" or "rk4"
+        self.tau = 0.02 #0.02 0.01
+        # self.kinematics_integrator = "euler"
+        self.kinematics_integrator = "rk4"  # "euler" or "rk4"
 
         # self.theta_threshold_radians = 12 * 2 * math.pi / 360
         self.theta_threshold_radians = math.pi 
-        self.x_threshold = 2.4
+        # self.x_threshold = 2.4
+        self.x_threshold = 5 # 2.4
 
         high = np.array(
             [
@@ -208,7 +209,7 @@ class ContinuousCartPoleEnv(gym.Env[np.ndarray, np.ndarray]):
             pole_coords.append(coord)
         gfxdraw.aapolygon(self.surf, pole_coords, (202, 152, 101))
         gfxdraw.filled_polygon(self.surf, pole_coords, (202, 152, 101))
-
+        # print(f"cartx: {cartx}, carty: {carty+ axleoffset}, polewidth/2: {polewidth / 2}")
         gfxdraw.aacircle(
             self.surf,
             int(cartx),

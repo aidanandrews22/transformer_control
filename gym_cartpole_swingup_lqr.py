@@ -5,6 +5,7 @@ from scipy.linalg import solve_continuous_are
 
 def find_nearest_upright(theta):
     return np.pi * 2 * round(theta / (2 * np.pi))
+    # return np.pi * (2 * round((theta - np.pi) / (2 * np.pi)) + 1)
 
 def LQR_controller(state, cartmass, polemass, polelength):
     """
@@ -40,7 +41,7 @@ def LQR_controller(state, cartmass, polemass, polelength):
     ])
 
     Q = np.diag([1, 1, 1, 1])
-    R = np.array([[.01]])
+    R = np.array([[1]])
 
 
     # Solve the continuous-time algebraic Riccati equation
@@ -64,6 +65,7 @@ def swingup_lqr_controller(state, switched, cartmass, polemass, polelength):
 
     eq_theta = find_nearest_upright(theta)
     eq_pt = np.array([0.0, 0.0, eq_theta, 0.0])
+    # print(f"eq_theta: {eq_theta}")
     # eq_pt = np.array([0.0, 0.0, 0.0, 0.0])  # Upright position
     # eq_theta = 0.0  # Upright position
     
@@ -72,22 +74,48 @@ def swingup_lqr_controller(state, switched, cartmass, polemass, polelength):
     sin_theta = np.sin(theta)
 
     # Switching Conditions for LQR
-    if switched or (np.abs(theta- eq_theta) < 0.3 and np.abs(theta_dot) < 0.5):
+    if switched or (np.abs(theta- eq_theta) < 0.3 and np.abs(theta_dot) < 1):
         # LQR fcn here later
+        # if switched == False:
+            # print("Switching to LQR controller")
+            
         switched = True
         K_lqr = LQR_controller(state, cartmass, polemass, polelength)
         f = - K_lqr @ (state - eq_pt)
     else:
         # Energy-based controller
-        K_e = 0.3
-        K_p = 1
-        K_d = 1
+        K_e = 1.0 # 0.4
+        K_p = 1.0
+        K_d = 1.0
 
-        Etilde = 0.5 * polemass * polelength**2 * theta_dot**2 + polemass * g * polelength * (1 - cos_theta) - polemass * g * polelength 
-        # xpp_desired = -K_e * cos_theta * theta_dot * Etilde - K_p * x - K_d * x_dot
+        # Etilde = 0.5 * polemass * polelength**2 * theta_dot**2 + polemass * g * polelength * (cos_theta)
+
+        ### works with larger switching conditions, not the best controller
+        # E = 0.5 * polemass * polelength**2 * theta_dot**2 + polemass * g * polelength * (1 + cos_theta)
+        # E_target = 2 * polemass * g * polelength
+        # Etilde = E - E_target
+        ### 
+
+        theta1 = theta + np.pi
+        cos_theta1 = np.cos(theta1)
+        sin_theta1 = np.sin(theta1)
+        theta1_dot = -theta_dot
+
+        Etilde = -g*polelength*polemass + (1/2)*polelength*polemass*(-2*g*cos_theta1 + polelength*theta1_dot*theta1_dot)
+        xpp_desired =  K_e*cos_theta1*theta1_dot*Etilde - K_p*x - K_d*x_dot
+        theta1_pp = -cos_theta1/polelength * xpp_desired - g/polelength * sin_theta1
+        f = (polemass+cartmass)*xpp_desired + cos_theta1*polelength*polemass*theta1_pp - sin_theta1*polelength*polemass*theta1_dot*theta1_dot
+
+
+        ###
+        # E = 0.5 * polemass * polelength**2 * theta_dot**2 - polemass * g * polelength * cos_theta
+        # E_target = - polemass * g * polelength
+        # Etilde = E - E_target
+        # Etilde = -g*polelength*polemass + (1/2)*polelength*polemass*(-2*g*cos_theta + polelength*theta_dot*theta_dot)
+        # xpp_desired = - K_e * sin_theta * theta_dot * Etilde - K_p * x - K_d * x_dot
         # theta_pp = - cos_theta/polelength * xpp_desired - (g/polelength) * sin_theta
         # f = (cartmass + polemass) * xpp_desired + cos_theta * polemass * polelength* theta_pp - sin_theta * polemass * polelength * theta_dot**2
-        f = -K_e * cos_theta * theta_dot * Etilde - K_p * x - K_d * x_dot
+        # f = K_e * cos_theta * theta_dot * Etilde - K_p * x - K_d * x_dot
 
     return f, switched
 

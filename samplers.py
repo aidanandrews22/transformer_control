@@ -6,7 +6,8 @@ import numpy as np
 # from workCon import checking 
 # from workCon_ebonye import checking 
 from workCon_linearsys import checking
-from workCon_cartpole import checking as checking_cartpole
+# from workCon_cartpole import checking as checking_cartpole
+from workCon_cartpole_aigym import checking as checking_cartpole
 import crocoddyl
 # from cartpole_optimal_trajectory import get_trajectory
 from scipy.signal import place_poles

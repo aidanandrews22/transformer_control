@@ -90,21 +90,30 @@ def run_single_system(masscart, masspole, length, theta_init, thetadot_init, run
 
 
 if __name__ == "__main__":
-    num_runs = 20
+    num_runs = 25
     results = []
     save_dir = os.path.join(os.getcwd(), 'videos', 'cartpole_gym_runs')
     os.makedirs(save_dir, exist_ok=True)
+    # mass_poles = np.array([0.90, 0.83])
+    # length_poles = np.array([1.30, 1.14])
+    # theta_inits = np.array([2.39, 1.93])
+    # thetadot_inits = np.array([0.3, 0.68])
+
 
     for run_idx in range(num_runs):
         masscart = 2.0
         masspole = np.random.uniform(0.5, 1.0)
         length = np.random.uniform(1.0, 1.5)
+        # masspole = mass_poles[run_idx]
+        # length = length_poles[run_idx]
         theta_init = np.random.uniform(np.pi - np.pi/2, np.pi + np.pi/2)
         thetadot_init = np.random.uniform(-1.0, 1.0)
+        # theta_init = theta_inits[run_idx]
+        # thetadot_init = thetadot_inits[run_idx]
 
         result = run_single_system(masscart, masspole, length, theta_init, thetadot_init, run_idx, save_dir)
         results.append(result)
-        print(f"[{run_idx+1}/{num_runs}] Stabilized: {result['stabilized']} — {result['path']}")
+        print(f"[{run_idx+1}/{num_runs}] Stabilized: {result['stabilized']} — Final State: {result['final_state']}")
 
     # Summary
     total_stabilized = sum(r['stabilized'] for r in results)

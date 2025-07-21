@@ -25,7 +25,7 @@ class ContinuousCartPoleEnv(gym.Env[np.ndarray, np.ndarray]):
         self.length = length
         self.polemass_length = self.masspole * self.length
         self.force_mag = 100.0
-        self.tau = 0.02 #0.02 0.01
+        self.tau = 0.025 #0.02 0.01
         # self.kinematics_integrator = "euler"
         self.kinematics_integrator = "rk4"  # "euler" or "rk4"
 
@@ -64,7 +64,8 @@ class ContinuousCartPoleEnv(gym.Env[np.ndarray, np.ndarray]):
         action = np.clip(action, self.action_space.low, self.action_space.high)
 
         def dynamics(state, action):
-            x, x_dot, theta, theta_dot = self.state
+            # x, x_dot, theta, theta_dot = self.state
+            x, x_dot, theta, theta_dot = state
 
             force = float(action[0])
             costheta = math.cos(theta)

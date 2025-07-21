@@ -81,6 +81,7 @@ def swingup_lqr_controller(state, switched, cartmass, polemass, polelength):
             
         switched = True
         K_lqr = LQR_controller(state, cartmass, polemass, polelength)
+        # print(f"K_lqr: {K_lqr}")
         f = - K_lqr @ (state - eq_pt)
     else:
         # Energy-based controller

@@ -1,6 +1,6 @@
 import os
 # os.environ["CUDA_VISIBLE_DEVICES"] = "3"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1, 3, 0"
 from random import randint
 import uuid
 from quinine import QuinineArgumentParser
@@ -20,6 +20,9 @@ import gc
 import json
 from torch.utils.data import DataLoader, TensorDataset
 from transformers import get_scheduler
+import shutil
+import torch.nn.functional as F
+import torch.nn as nn
 
 random.seed(42)
 np.random.seed(42)
@@ -84,33 +87,53 @@ def train_step(model, xs, ys, optimizer, loss_func, i, args, numtrainingsteps, b
     
 
 
-    xs_scaled = xs
+    # xs_scaled = xs
+    # make replace theta with cos(theta) and sin(theta) for cartpole
+    cos_theta = torch.cos(xs[:, :, 2])
+    sin_theta = torch.sin(xs[:, :, 2])
+    # import pdb; pdb.set_trace()
+    xs_scaled = torch.cat((xs[:, :, :2], cos_theta.unsqueeze(-1), sin_theta.unsqueeze(-1), xs[:, :, 3:]), dim=-1)
     ys_scaled = ys
 
     
 
 
-    output_controls, output_states = model(xs_scaled, ys_scaled)
+    # output_controls, output_states = model(xs_scaled, ys_scaled)
+    output_controls, output_states, switch_logits = model(xs_scaled, ys_scaled)
     
 
 
-    output = [output_controls.detach(), output_states.detach()]
+    # output = [output_controls.detach(), output_states.detach()]
+    output = [output_controls.detach(), output_states.detach(), switch_logits.detach()]
 
     # import pdb; pdb.set_trace()
 
     
 
-    loss_controls = loss_func(output_controls.squeeze()[:,:-1], ys_scaled)
-    # loss_controls = loss_func(output_controls.squeeze()[:,:-1], ys_scaled[..., 0])
+    # loss_controls = loss_func(output_controls.squeeze()[:,:-1], ys_scaled)
+    loss_controls = loss_func(output_controls.squeeze()[:,:-1], ys_scaled[..., 0])
     
 
     loss_states = loss_func(output_states[:,:-1], xs_scaled[:,1:])
 
-    
+    # import pdb; pdb.set_trace()
 
-    loss = loss_controls + loss_states
-    
+    # loss_switch = F.cross_entropy(switch_logits[:,:-1,:].reshape(-1, 2), ys_scaled[...,1].long().reshape(-1))  # Assuming ys_scaled[...,1] contains the switch labels
+    bce_loss = nn.BCEWithLogitsLoss()
+    switch_logits_flat = switch_logits[:, :-1].squeeze(-1).reshape(-1)  # Flatten the logits
+    labels_flat = ys_scaled[..., 1].view(-1).float()  # Flatten the labels
 
+    loss_switch = bce_loss(switch_logits_flat, labels_flat)
+
+
+    # loss = loss_controls + loss_states
+    alpha_controls = 1.0
+    alpha_states = 1.0
+    alpha_switch = 1.0
+    # loss = loss_controls + loss_states + loss_switch
+    loss = alpha_controls * loss_controls + alpha_states * loss_states + alpha_switch * loss_switch
+    
+    # import pdb; pdb.set_trace()
 
     total_loss = loss 
     total_loss = total_loss.to(xs.device).requires_grad_(True)
@@ -586,9 +609,13 @@ def main(args):
         )
 
     model = build_model(args.model)
-    device_ids = [0,1]
+    # device_ids = [0, 1]
+    # model = torch.nn.DataParallel(model, device_ids=device_ids)
+    # model = model.to('cuda:0')
+
+    device_ids = [0, 1, 2]
+    model.to('cuda:0')
     model = torch.nn.DataParallel(model, device_ids=device_ids)
-    model = model.to('cuda:0')
     # model.cuda()
 
 
@@ -660,6 +687,15 @@ if __name__ == "__main__":
 
         with open(os.path.join(args.out_dir, "config.yaml"), "w") as yaml_file:
             yaml.dump(args.__dict__, yaml_file, default_flow_style=False)
+
+        model_source_path = "models.py"
+        model_dest_path = os.path.join(args.out_dir, "models.py")
+        shutil.copy(model_source_path, model_dest_path)
+
+        train_source_path = "trainSequential_ebonye_cartpole.py"
+        train_dest_path = os.path.join(args.out_dir, "trainSequential_ebonye_cartpole.py")
+        shutil.copy(train_source_path, train_dest_path)
+        
 
 
     main(args)

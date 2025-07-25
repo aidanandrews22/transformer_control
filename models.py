@@ -21,7 +21,7 @@ def build_model(conf):
     if conf.family == "gpt2":
         model = TransformerModel(
             n_dims=conf.n_dims,
-            n_positions=conf.n_positions,
+            n_positions=conf.n_positions, ### ebonye 7/22/2025 why wasn't 2* here before? 
             n_embd=conf.n_embd,
             n_layer=conf.n_layer,
             n_head=conf.n_head, 
@@ -87,7 +87,7 @@ class TransformerModel(nn.Module):
     def __init__(self, n_dims, n_positions, n_embd=256, n_layer=12, n_head=8):
         super(TransformerModel, self).__init__()
         configuration = GPT2Config(
-            n_positions=2 * n_positions,
+            n_positions=3 * n_positions,
             n_embd=n_embd,
             n_layer=n_layer,
             n_head=n_head,
@@ -98,24 +98,26 @@ class TransformerModel(nn.Module):
         )
         self.name = f"gpt2_embd={n_embd}_layer={n_layer}_head={n_head}"
 
-        self.n_positions = n_positions
-        self.n_dims = n_dims
+        # self.n_positions = 2*n_positions
+        # self.n_dims = n_dims
         
         # self.time_embedding = nn.Embedding(300, n_embd) #linear system
         self.time_embedding = nn.Embedding(560, n_embd) #cartpole
         self.state_embedding = nn.Linear(n_dims, n_embd)
         self.control_embedding = nn.Linear(1, n_embd)
-        # self.switch_embedding = nn.Embedding(2, n_embd)  # add embedding for switching controller for cartpole
+        self.switch_embedding = nn.Embedding(2, n_embd)  # add embedding for switching controller for cartpole
         # self.control_embedding = nn.Linear(2, n_embd)  # add label for switching controller for cartpole
+        self.distance_embedding = nn.Linear(1, n_embd)  # add distance embedding for cartpole
 
         self.embed_ln = nn.LayerNorm(n_embd, eps=1e-5)
 
         self._backbone = GPT2Model(configuration)
         
-        self._state_head = nn.Linear(n_embd, 4) #4/18/2025 cartpole
+        self._state_head = nn.Linear(n_embd, n_dims) #4/18/2025 cartpole
+        self.switch_head = nn.Linear(n_embd, 1)  # add label for switching controller for cartpole
         # self._state_head = nn.Linear(n_embd, 2) #4/18/2025 pendulum and linear system
-        # self._control_head = nn.Linear(n_embd, 1) # no label for switching controller
-        self._control_head = nn.Linear(n_embd, 2)  # add label for switching controller for cartpole
+        self._control_head = nn.Linear(n_embd, 1) # no label for switching controller
+        # self._control_head = nn.Linear(n_embd, 2)  # add label for switching controller for cartpole
 
     # @staticmethod
     # def _combine(xs_b, ys_b):
@@ -225,12 +227,17 @@ class TransformerModel(nn.Module):
 
 
             states_embed = self.state_embedding(xs_b) 
-            controls_embed = self.control_embedding(ys_b)
+            # controls_embed = self.control_embedding(ys_b)
+            controls_embed = self.control_embedding(ys_b[..., 0].unsqueeze(-1))  # 5/25/2025 separate embeddings, ys_b is already in the right shape
+            switch_embed = self.switch_embedding(ys_b[..., 1].long().unsqueeze(-1))  # 5/25/2025 separate embeddings, add switch embedding
 
             #### embeddings for switching new code 6/24/2025
             # controls_embed = self.control_embedding(control_scalar)  
             timesteps = torch.arange(0, xs_b.shape[1], device=xs_b.device).unsqueeze(0).repeat(xs_b.shape[0], 1)
             time_embed = self.time_embedding(timesteps)
+            goal_state = torch.tensor([0.0, 0.0, 1.0, 0.0, 0.0], device=xs_b.device)  
+            distance = torch.norm(xs_b - goal_state, dim=-1, keepdim=True)  # Compute distance so far with new states
+            distance_embed = self.distance_embedding(distance)
 
             #### embeddings for switching new code 6/24/2025
             # switch_embed = self.switch_embedding(switch_flag)
@@ -238,17 +245,23 @@ class TransformerModel(nn.Module):
             states_embed = states_embed + time_embed
             # states_embed = states_embed + time_embed + switch_embed
             controls_embed = controls_embed + time_embed
+            switch_embed = switch_embed + time_embed  # 5/25/2025 separate embeddings, add time embedding to switch embedding
+            distance_embed = distance_embed + time_embed
 
-            stacked_inputs = torch.stack((states_embed, controls_embed), dim=2)
-            zs = stacked_inputs.view(xs_b.shape[0], 2 * xs_b.shape[1], -1)
+            # stacked_inputs = torch.stack((states_embed, controls_embed), dim=2)
+            # zs = stacked_inputs.view(xs_b.shape[0], 2 * xs_b.shape[1], -1)
+            stacked_inputs = torch.stack((states_embed, distance_embed, switch_embed, controls_embed), dim=2)
+            zs = stacked_inputs.view(xs_b.shape[0], 4 * xs_b.shape[1], -1)
             zs = self.embed_ln(zs)  # Apply layer normalization to the combined embeddings
 
             output = self._backbone(inputs_embeds=zs).last_hidden_state
 
-            control_prediction = self._control_head(output[:, ::2, :])  # Control predictions
-            state_prediction = self._state_head(output[:, 1::2, :])  # State predictions
-            return control_prediction, state_prediction
-        
+            control_prediction = self._control_head(output[:, ::4, :])  # Control predictions
+            switch_logits = self.switch_head(output[:, ::4, :])
+            state_prediction = self._state_head(output[:, 3::4, :])  # State predictions
+            return control_prediction, state_prediction, switch_logits
+            # return control_prediction[:, :, 0], state_prediction, control_prediction[:, :, 1]  # Return control and state predictions, and switch logits
+
         # print(f"xs shape: {xs.shape}")
         # print(f"ys shape: {ys.shape}")
 
@@ -263,28 +276,38 @@ class TransformerModel(nn.Module):
 
         states_embed = self.state_embedding(xs) # 5/25/2025 separate embeddings
         # controls_embed = self.control_embedding(ys.unsqueeze(-1)) # 5/25/2025 separate embeddings, no labels for control switching
-        controls_embed = self.control_embedding(ys)  # 5/25/2025 separate embeddings, ys is already in the right shape
+        # controls_embed = self.control_embedding(ys)  # 5/25/2025 separate embeddings, ys is already in the right shape
+        controls_embed = self.control_embedding(ys[..., 0].unsqueeze(-1))
+        switch_embed = self.switch_embedding(ys[..., 1].long())
         
         
         timesteps = torch.arange(0, xs.shape[1], device=xs.device).unsqueeze(0).repeat(xs.shape[0], 1)
         time_embed = self.time_embedding(timesteps) 
+        goal_state = torch.tensor([0.0, 0.0, 1.0, 0.0, 0.0], device=xs.device)  # Example goal state
+        distance = torch.norm(xs - goal_state, dim=-1, keepdim=True)
+        distance_embed = self.distance_embedding(distance)
 
        
 
         states_embed = states_embed + time_embed
         # states_embed = states_embed + time_embed + switch_embed
         controls_embed = controls_embed + time_embed
-
-        stacked_inputs = torch.stack((states_embed, controls_embed), dim=2) 
-        zs = stacked_inputs.view(xs.shape[0], 2 * xs.shape[1], -1) 
+        distance_embed = distance_embed + time_embed
+        switch_embed = switch_embed + time_embed  # 5/25/2025 separate embeddings, add time embedding to switch embedding
+        # stacked_inputs = torch.stack((states_embed, controls_embed), dim=2) 
+        # print(f"states_embed shape: {states_embed.shape}")
+        # print(f"controls_embed shape: {controls_embed.shape}")
+        # print(f"switch_embed shape: {switch_embed.shape}")
+        stacked_inputs = torch.stack((states_embed, distance_embed, switch_embed, controls_embed), dim=2)  # 5/25/2025 separate embeddings, add switch embedding
+        # zs = stacked_inputs.view(xs.shape[0], 2 * xs.shape[1], -1) 
+        zs = stacked_inputs.view(xs.shape[0], 4 * xs.shape[1], -1)
         zs = self.embed_ln(zs)  # Apply layer normalization to the combined embeddings
 
         output = self._backbone(inputs_embeds=zs).last_hidden_state
 
-        control_prediction = self._control_head(output[:, ::2, :])  # Control predictions
-        state_prediction = self._state_head(output[:, 1::2, :])  # State predictions
-
-        
+        control_prediction = self._control_head(output[:, ::4, :])  # Control predictions
+        switch_logits = self.switch_head(output[:, ::4, :])  # Switch predictions
+        state_prediction = self._state_head(output[:, 3::4, :])  # State predictions
 
         # # zs = self._combine(xs, ys)
         # zs = self._combine_ebonye(xs, ys) 
@@ -316,7 +339,7 @@ class TransformerModel(nn.Module):
         if ys is not None:
             # return prediction[:, ::2, 0]  ##### 4/10/2025 wanting to do loss on states and control
             # return prediction[:, ::2, 0], prediction[:, 1::2, 0]  ##### 4/10/2025 wanting to do loss on states and control
-            return control_prediction, state_prediction
+            return control_prediction, state_prediction, switch_logits  
             # return control_prediction[:,::2], state_prediction[:, 1::2]  ##### 4/10/2025 wanting to do loss on states and control
 
         # if prediction.dim() == 3:

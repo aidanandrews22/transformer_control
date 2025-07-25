@@ -11,9 +11,35 @@ import torch
 import yaml
 
 import models
+
 from samplers import get_data_sampler, sample_transformation
 from tasks import get_task_sampler
+import importlib.util
+import os
 
+
+def load_function_from_runpath(run_path, file_name, function_name):
+    """
+    Load a function from a run path.
+    Args:
+        run_path (str): Path to the run directory.
+        file_name (str): Name of the file containing the function.
+        function_name (str): Name of the function to load.
+    Returns:
+        function: The loaded function.
+    """
+    file_path = os.path.join(run_path, file_name)
+
+    if not os.path.exists(file_path):
+        return None
+
+    spec = importlib.util.spec_from_file_location(
+        function_name, file_path
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    
+    return getattr(module, function_name)
 
 # def get_model_from_run(run_path, step=-1, only_conf=False):
 def get_model_from_run(run_path, epoch, step=-1, only_conf=False):
@@ -24,7 +50,15 @@ def get_model_from_run(run_path, epoch, step=-1, only_conf=False):
     if only_conf:
         return None, conf
 
-    model = models.build_model(conf.model)
+    
+    # model = models.build_model(conf.model)
+    build_model_func = load_function_from_runpath(
+        run_path, "models.py", "build_model"
+    )
+    if build_model_func is None:
+        model = models.build_model(conf.model)
+    else:
+        model = build_model_func(conf.model)
 
     ###### 2/11/2025 (ebonye): fixed to remove "module." from keys so it can work for inference
     if step == -1:

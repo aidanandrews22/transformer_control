@@ -221,11 +221,12 @@ class CartPoleSampler2(DataSampler):
                 - thetadot_init (float): The initial angular velocity of the pole.
         """
         x_init = np.zeros(size)  # Assuming the cart starts at the origin
-        theta_init = np.random.uniform(-self.theta_limit, self.theta_limit, size=size)  # Sampling theta uniformly within the limit
+        theta_init = np.random.uniform(np.pi-self.theta_limit, np.pi+self.theta_limit, size=size)  # Sampling theta uniformly within the limit
         xdot_init = np.zeros(size)  # Assuming the cart starts at rest
         thetadot_init = np.random.uniform(-self.thetadot_limit, self.thetadot_limit, size=size)  # Sampling thetadot uniformly within the limit
         # return [x_init, theta_init, xdot_init, thetadot_init]
-        return np.column_stack((x_init, theta_init, xdot_init, thetadot_init))
+        # return np.column_stack((x_init, theta_init, xdot_init, thetadot_init))
+        return np.column_stack((x_init, xdot_init, theta_init, thetadot_init))  # Changed order to match [x, xdot, theta, thetadot]
     
     def generate_xs_dataset(self, n_points, bsize, cartmass=torch.tensor([2]), polemass=torch.tensor([0.2]), polelength=torch.tensor([0.5]), device='cuda:0'):
         """

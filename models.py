@@ -229,7 +229,7 @@ class TransformerModel(nn.Module):
             states_embed = self.state_embedding(xs_b) 
             # controls_embed = self.control_embedding(ys_b)
             controls_embed = self.control_embedding(ys_b[..., 0].unsqueeze(-1))  # 5/25/2025 separate embeddings, ys_b is already in the right shape
-            switch_embed = self.switch_embedding(ys_b[..., 1].long().unsqueeze(-1))  # 5/25/2025 separate embeddings, add switch embedding
+            switch_embed = self.switch_embedding(ys_b[..., 1].long())  # 5/25/2025 separate embeddings, add switch embedding
 
             #### embeddings for switching new code 6/24/2025
             # controls_embed = self.control_embedding(control_scalar)  
